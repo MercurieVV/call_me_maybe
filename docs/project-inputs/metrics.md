@@ -9,25 +9,26 @@ project isolation stay at least as good as the baseline.
 | Goal | Primary metric | Quality guardrail |
 |---|---|---|
 | Discover API signatures/models quickly | Time from task start to a correct signature plus required input/output model; record MCP/tool round trips and tokens | Exact symbol, parameter types, optionality, result shape, and referenced types match MCP schema or source |
-| Chain deterministic calls | LLM↔MCP round trips per task; percentage of dependent calls handled in one `batch` or REPL chain | Track underlying MCP subcall count separately; all dependencies and results are correct and failures are surfaced |
+| Chain deterministic calls | LLM↔MCP round trips per task; percentage of dependent calls handled inside a custom Scala/REPL MCP chain | Track underlying MCP subcalls separately; branches, dependencies, and failures are handled correctly |
 | Understand project structure | Correct-root, build-tool, module, and compile-command selection rate; time to identify them | No analysis against the wrong project or module |
 | Work across projects | Cross-project contamination rate and successful tasks per distinct root | Target zero wrong-root results; report root switches and whether contexts were isolated |
 | Handle code/build-cache changes | Stale-result rate after source edit and successful compile; time to observe the updated signature | Target zero stale results after the documented refresh/restart procedure |
 | Reduce exploration cost without losing quality | Median and p90 wall-clock time, LLM tokens/cost, and source/tool operations per completed task | Correctness and completeness must not regress; report task failures and unsupported claims |
 
-Count **LLM↔MCP round trips** separately from the number of MCP subcalls inside
-a `batch`. A single batch can reduce orchestration latency while still doing
-multiple server operations. Likewise, report REPL startup/compilation time
-separately from time spent on the actual query.
+Count **LLM↔MCP round trips** separately from the MCP calls made by a custom
+Scala/REPL chain. Report REPL/client startup and compilation separately from
+time spent on the actual query. The five-run batch measurement is historical
+evidence, not the target workflow or a substitute for a serial baseline.
 
 ## Benchmark tasks
 
-Use the same tasks for a serial-call baseline and the batched/REPL workflow:
+Use the same tasks for a serial-call baseline and the custom Scala/REPL workflow:
 
 1. Discover one MCP tool's input/output schema and the corresponding Scala
    request/result model and signatures.
 2. Resolve a symbol and inspect its members, comparing serial calls with one
-   dependent `batch` chain.
+   custom Scala/REPL chain that invokes MCP tools and validates intermediate
+   results.
 3. Identify the correct build/module and analyze a symbol in each of two
    project roots, checking that the results do not leak across roots.
 4. Change a method or model, compile, and verify that the updated signature is
@@ -38,6 +39,8 @@ Use the same tasks for a serial-call baseline and the batched/REPL workflow:
 For each task, record whether the answer is correct and complete before
 comparing cost. Run both cold and warm sessions where startup matters; use
 multiple repetitions and report median and p90 rather than a single best run.
+The custom-chain comparisons are not executable until the REPL MCP client
+exists; do not substitute the server's `batch` tool for that implementation.
 
 ## Initial acceptance gates
 

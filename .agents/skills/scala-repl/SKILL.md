@@ -18,10 +18,11 @@ Use this skill when you need to run exploratory Scala expressions or inspect com
    with `members` or `symbol_source`.
 4. Check whether SemanticDB is present and fresh. Compile when sources changed
    or the index is missing/stale; do not rebuild blindly.
-5. For deterministic MCP-only sequences, use one native `scala-semantic`
-   `batch` call rather than serial MCP calls. Do not start Mill or Scala CLI
-   just to wrap a single batch call; use Scala/REPL when it adds local
-   computation. The current REPL bridge cannot invoke MCP directly.
+5. Use Scala/REPL for deterministic local analysis and custom computation.
+   Until the bridge has an MCP client, make required remote calls directly
+   with the active MCP tools. Do not use the server's `batch` tool as a
+   substitute for custom REPL logic or start Mill/Scala CLI merely to wrap
+   remote calls.
 6. Keep project contexts isolated. Confirm the active MCP root with
    `get_workspace_root` when available; restore the original root after
    switching with `set_workspace_root`. Pass an explicit root to CLI scripts
@@ -30,9 +31,9 @@ Use this skill when you need to run exploratory Scala expressions or inspect com
 
 **Current implementation boundary:** the persistent bridge loads
 `scalasemantic-core` and queries SemanticDB directly; it does not invoke MCP
-tools from Scala. Until a programmatic MCP client is available, use one
-`scala-semantic` `batch` call instead of serial MCP calls when it can express
-the dependent workflow.
+tools from Scala. Custom MCP orchestration in the REPL is a target, not a
+current capability. Until an MCP client is implemented, use direct MCP tool
+calls for remote operations and Scala for local processing.
 
 ## ScalaSemantic API discovery
 
@@ -54,11 +55,9 @@ the REPL to try the resulting Scala code.
 4. Follow parameter and return types with additional `find_symbol`,
    `method_signature`, or `members` calls only as needed. Do not guess symbol
    strings or load the whole library by default.
-5. In a `batch`, inspect every call's `ok` status. Later calls still run after
-   an earlier call fails, so check that a search returned the expected
-   candidate before depending on its `$ref`. If a search may be empty or
-   ambiguous, resolve it first and batch only the calls that use its exact
-   symbol.
+5. Before using a returned symbol in a later MCP call, verify that the lookup
+   returned the expected candidate. Keep remote calls explicit until the REPL
+   can orchestrate them with custom Scala control flow.
 
 For example, to discover `SemanticIndex`'s API, first resolve the type:
 

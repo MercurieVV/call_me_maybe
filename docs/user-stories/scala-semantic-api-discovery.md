@@ -24,8 +24,8 @@ without loading the entire API into context.
   for the current task; all schemas and library sources are not loaded by
   default.
 - The Scala REPL remains a Scala execution environment. MCP discovery uses the
-  available MCP tools directly; the REPL does not need its own MCP client for
-  the initial version.
+  available MCP tools directly until an MCP client is available in the REPL;
+  the target workflow allows custom Scala code to orchestrate those calls.
 
 ## Decisions and constraints
 
@@ -42,8 +42,10 @@ without loading the entire API into context.
   Resolve referenced model types only when needed.
 - The current bridge does not launch an MCP client or call MCP from Scala code.
   Programmatic MCP calls and chains from the REPL are a project goal, but require
-  an MCP client and explicit transport/lifecycle design. Until then, prefer one
-  `batch` call over serial agent-to-MCP calls for deterministic workflows.
+  an MCP client and explicit transport/lifecycle design. Do not use the
+  server's limited `batch` tool as an interim chain; until client integration is
+  available, make required MCP calls directly and keep local computation in
+  Scala.
 - Loading the skill does not execute its Scala scripts. The agent follows the
   discovery instructions when the skill is relevant; it inspects the active
   tool catalog and fetches exact schemas or signatures as needed.

@@ -4,7 +4,7 @@
 
 This is an early-stage Scala 3 project exploring **programmatic tool calling**: move deterministic, multi-step work into a Scala script or persistent REPL chain and invoke the chain as a unit, rather than asking the model to call tools and make each intermediate decision one at a time. The target is to make several MCP calls through `scala-semantic` from Scala, reducing interaction time and token use while keeping deterministic logic in code.
 
-Treat this as the project direction supplied by its owner, not as an architecture already present in the code. Keep repeatable logic and sequencing in Scala; use MCP calls for external capabilities. The current REPL bridge does not yet call MCP programmatically. Until that exists, prefer one `scala-semantic` `batch` call over serial tool calls; it can run up to 20 tools and pass earlier results to later calls with `$ref`. `app/src/InspectSymbol.scala` is the first example: resolve a symbol, then inspect its members in one batch. Use Mill for the project build and Scala CLI for standalone scripts.
+Treat this as the project direction supplied by its owner, not as an architecture already present in the code. Keep repeatable logic and sequencing in Scala; use MCP calls for external capabilities. The target is an MCP client callable from the Scala REPL, so custom Scala code can branch on results and handle failures. The current bridge does not invoke MCP. Until that client exists, make required remote calls directly and use Scala for local deterministic work; do not use the ScalaSemantic `batch` tool as a substitute for custom REPL logic. `app/src/InspectSymbol.scala` is retained as a historical batch experiment, not the recommended workflow. Use Mill for the project build and Scala CLI for standalone scripts.
 
 Project goals and acceptance criteria are input data in
 [`docs/project-inputs/skill-goals.md`](docs/project-inputs/skill-goals.md);
@@ -28,4 +28,4 @@ Apply the shared guidance in the sibling checkout at [`../scala-coding-guideline
 
 ## Build, test, and lint
 
-Build the Scala module with `mill app.compile`. Run the example chain with `scala-cli run app/src/InspectSymbol.scala -- <type-name> [project-root]`. There are no test or lint targets yet; document their actual Mill commands, including a single-test invocation, when they are added.
+Build the Scala module with `mill app.compile`. `app/src/InspectSymbol.scala` is a historical experiment, not the current tool-chain workflow. There are no test or lint targets yet; document their actual Mill commands, including a single-test invocation, when they are added.

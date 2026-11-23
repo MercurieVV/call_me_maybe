@@ -54,9 +54,9 @@ Python, tmux, or another unrelated runtime just to use the REPL.
 - Keep direct ScalaSemantic core inspection separate from MCP calls:
   `SemanticIndex.fromProject(semanticProjectRoot)` reads compiled SemanticDB
   from the REPL's explicitly resolved working directory.
-  When MCP capabilities are needed, prefer ScalaSemantic's `batch` tool for
-  deterministic chains; its v0.9.1 implementation supports up to 20 chained
-  calls with `$ref`.
+  The server's `batch` tool was evaluated but is not the selected workflow:
+  custom Scala control flow is more flexible. Until an MCP client is available
+  in the REPL, invoke required MCP tools directly.
 - The endpoint should remain local and permission-restricted. Evaluated Scala
   has the current user's permissions, so only use it in a trusted workspace.
 
@@ -64,8 +64,9 @@ Python, tmux, or another unrelated runtime just to use the REPL.
 
 - Loaded ScalaSemantic core in a Scala 3 REPL and inspected the project index
   directly: 1 document, 25 symbols, and 135 occurrences.
-- Used a ScalaSemantic `batch` chain to resolve a symbol and inspect its members
-  on a temporary fixture; the fixture was removed afterward.
+- Historical experiment: used a ScalaSemantic `batch` chain to resolve a symbol
+  and inspect its members on a temporary fixture; the fixture was removed
+  afterward. This is retained as prior evidence, not a recommended workflow.
 - Kept a definition across separate bridge requests (`val answer = 40`, then
   `answer + 2` produced `42`).
 - Verified that printing text containing `scala> ` does not confuse prompt
