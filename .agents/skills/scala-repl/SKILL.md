@@ -51,14 +51,15 @@ method_signature(symbol = "<returned symbol>", detailed = true)
 members(symbol = "<returned symbol>", include = ["declared"], detailed = true)
 ```
 
-MCP schemas describe the JSON interface; Scala signatures describe the library
-API. Loading this skill does not execute scripts or automatically call tools.
+MCP tool schemas describe only those tools, not the Scala library. Use
+`scalasemantic-core` only as Scala code in the REPL—never through handcrafted
+JSON/JSON-RPC or the `scalasemantic-mcp` server/CLI. Loading this skill does not
+execute scripts or automatically call tools.
 
 ## Direct ScalaSemantic core access
 
-For local compiled SemanticDB queries (not MCP capabilities), use
-`io.github.mercurievv::scalasemantic-core` and `SemanticIndex`; do not launch
-the MCP server or CLI for this path.
+For local compiled SemanticDB, import `io.github.mercurievv::scalasemantic-core`
+and use `SemanticIndex` from the REPL.
 
 1. Compile the relevant module with SemanticDB enabled. This repository uses
    `mill app.compile`; for other projects, inspect the build:
