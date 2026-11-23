@@ -53,3 +53,8 @@ measurement of LLM reasoning time, tokens, or an end-to-end agent task. The
 timing improvement primarily reflects avoiding three bridge/REPL evaluation
 round trips; it does not show that the underlying SemanticIndex operations
 themselves became faster.
+
+An additional timed pair with its individual requests and REPL responses
+captured is preserved in
+[`repl-semantic-index-chain-2026-11-24-run-log.md`](repl-semantic-index-chain-2026-11-24-run-log.md).
+It is not included in the ten-sample summary above.
