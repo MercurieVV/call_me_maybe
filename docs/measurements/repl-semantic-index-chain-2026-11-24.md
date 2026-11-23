@@ -58,3 +58,8 @@ An additional timed pair with its individual requests and REPL responses
 captured is preserved in
 [`repl-semantic-index-chain-2026-11-24-run-log.md`](repl-semantic-index-chain-2026-11-24-run-log.md).
 It is not included in the ten-sample summary above.
+
+A separate no-Python parity check, with serial results returned to the LLM
+between Bash calls, is recorded in
+[`repl-semantic-index-llm-visible-log-2026-11-24.md`](repl-semantic-index-llm-visible-log-2026-11-24.md).
+It was not timed.
