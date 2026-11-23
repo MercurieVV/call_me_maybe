@@ -9,48 +9,32 @@ Use this skill when you need to run exploratory Scala expressions or inspect com
 
 ## Session setup and workflow
 
-1. Read the applicable project instructions and identify the correct project
-   root and build entry point. Resolve the absolute directory containing this
-   `SKILL.md` from its loaded path and set it as `SKILL_DIR`; it may be outside
-   the project being analyzed. Run REPL commands from the target project root,
-   but reference skill scripts through `SKILL_DIR`.
-2. Choose the narrow data path: use direct core access for local compiled
-   SemanticDB; use MCP tools for server capabilities and metadata. The current
-   bridge cannot call MCP, so make remote calls directly and use Scala/REPL for
-   local computation. Do not use the server's `batch` tool as a substitute for
-   custom REPL logic.
-3. Check whether SemanticDB is present and fresh. Compile when sources changed
-   or the index is missing/stale; do not rebuild blindly.
-4. Keep project contexts isolated. Confirm the active MCP root with
-   `get_workspace_root` when available; restore the original root after
-   switching with `set_workspace_root`. Pass an explicit root to CLI scripts
-   when analyzing another project instead of relying on `.` defaults. The
-   bridge resolves its project from the startup working directory; start a
-   separate bridge from each target root and keep each REPL's
-   `semanticProjectRoot` matched to its project.
+1. Read project instructions; identify the target root, module, and build.
+   Resolve this skill's absolute directory from its loaded path as `SKILL_DIR`.
+   Run REPL commands from the target root and reference scripts through it.
+2. Use direct core access for local compiled SemanticDB and MCP tools for
+   server capabilities. The bridge cannot call MCP; make remote calls directly
+   and use Scala for local computation. Do not substitute the server's `batch`
+   tool for custom REPL logic.
+3. Check SemanticDB freshness; compile only when sources changed or the index
+   is missing/stale.
+4. Keep roots isolated: confirm and restore the active MCP root when switching.
+   The bridge resolves its root from its startup directory, so run one bridge
+   per target root; pass explicit roots to CLI tools instead of relying on `.`.
 
 ## ScalaSemantic API discovery
 
-When you encounter an unfamiliar Scala API, discover its real signatures and
-types before writing calls. Use the active ScalaSemantic MCP tools for
-discovery, then use the REPL to try the resulting Scala code.
+For an unfamiliar Scala API, use the active ScalaSemantic tool catalog and
+resolve real signatures before writing code:
 
-1. At the start of a task using this skill, check the active MCP tool catalog
-   for the ScalaSemantic tool names and descriptions. The catalog is
-   authoritative and may differ between environments.
-2. Use the active tool catalog as the request-argument contract. If you need
-   the response shape, retrieve that tool's output schema with
-   `output_schema(tool = "...")`; omit `tool` only when you need every typed
-   tool's output schema.
-3. If you need a Scala method, resolve its name with `find_symbol`. Pass the
-   exact returned symbol to `method_signature(detailed = true)`. Use `members`
-   to inspect the owning type and `symbol_source` for docs or implementation.
-4. Follow parameter and return types with additional `find_symbol`,
-   `method_signature`, or `members` calls only as needed. Do not guess symbol
-   strings or load the whole library by default.
-5. Before using a returned symbol in a later MCP call, verify that the lookup
-   returned the expected candidate. Keep remote calls explicit until the REPL
-   can orchestrate them with custom Scala control flow.
+1. Treat the active catalog as authoritative for tool names and request
+   arguments. Use `output_schema(tool = "...")` only when you need the response
+   shape.
+2. Resolve names with `find_symbol`, then pass the exact returned symbol to
+   `method_signature(detailed = true)`. Inspect only needed types with
+   `members` or `symbol_source`; verify lookup results before using them.
+3. `method_signature` may omit source-level defaults. Inspect the definition
+   when default values or other source details matter.
 
 For example, to discover `SemanticIndex`'s API, first resolve the type:
 
@@ -65,27 +49,28 @@ method_signature(symbol = "<returned symbol>", detailed = true)
 members(symbol = "<returned symbol>", include = ["declared"], detailed = true)
 ```
 
-MCP tool schemas describe the JSON interface; Scala method signatures describe
-the library API. Do not treat one as a substitute for the other. The skill
-instructions guide API discovery when relevant; loading the skill does not
-execute scripts or automatically call tools.
+MCP schemas describe the JSON interface; Scala signatures describe the library
+API. Loading this skill does not execute scripts or automatically call tools.
 
 ## Direct ScalaSemantic core access
 
-For SemanticDB inspection without MCP, use the `io.github.mercurievv::scalasemantic-core` library and `SemanticIndex`. Do not launch `scalasemantic-mcp`, call its CLI, or send JSON-RPC requests for this workflow.
+For local compiled SemanticDB queries (not MCP capabilities), use
+`io.github.mercurievv::scalasemantic-core` and `SemanticIndex`; do not launch
+the MCP server or CLI for this path.
 
-1. Work from the Scala project root.
-2. Compile the relevant module with SemanticDB enabled. In this repository, run `mill app.compile`; check `build.mill` for `-Xsemanticdb` and the project sourceroot. For other projects, inspect their build before choosing a compile command:
-   - Mill: compile the relevant module(s), and ensure normal compilation emits SemanticDB.
-   - sbt: compile the relevant project with its SemanticDB compiler plugin/settings enabled.
-   - Scala CLI: compile with `--semanticdb` and the project sourceroot; include `--test` when test sources matter.
-3. Resolve `SCALA_VERSION` from the target project's build and
+1. Compile the relevant module with SemanticDB enabled. This repository uses
+   `mill app.compile`; for other projects, inspect the build:
+   - Mill: compile the needed module with SemanticDB enabled.
+   - sbt: compile the project with its SemanticDB plugin/settings.
+   - Scala CLI: use `compile --semanticdb --sourceroot <project-root>` and add
+     `--test` when test sources matter.
+2. Resolve `SCALA_VERSION` from the target project's build and
    `CORE_VERSION` from the active ScalaSemantic server release/configuration.
    Convert a release such as `v0.9.1` to its Maven artifact version `0.9.1`.
    In this repository the values are Scala `3.8.4` and core `0.9.1`; do not
    reuse them for another project without checking its configuration. If the
    matching core release cannot be established, do not guess.
-4. Start the REPL from the project root:
+3. Start the REPL from the project root, replacing the placeholders:
 
    ```sh
    SKILL_DIR="/absolute/path/to/scala-repl"
@@ -96,10 +81,8 @@ For SemanticDB inspection without MCP, use the `io.github.mercurievv::scalaseman
      --repl-init-script-file "$SKILL_DIR/repl-init.scala"
    ```
 
-The init file resolves the REPL working directory as `semanticProjectRoot` and
-defines `semanticIndex` as a lazy `SemanticIndex.fromProject` value. The library
-is available at startup, but the project index is read only when first used.
-Continue querying that value with ordinary Scala collections and methods, for
+`repl-init.scala` sets `semanticProjectRoot` from the working directory and
+loads `semanticIndex` lazily. Query it with ordinary Scala collections, for
 example:
 
 ```scala
@@ -113,7 +96,9 @@ semanticIndex.info("app/SomeType#")
 semanticIndex.ownerChain("app/SomeType#")
 ```
 
-Resolve exact SemanticDB symbols from `semanticIndex.symbols`; do not guess symbol strings. `SemanticIndex` exposes the index data (documents, symbols, and occurrences), not the higher-level MCP analysis tools.
+Resolve symbols from `semanticIndex.symbols` rather than guessing strings.
+`SemanticIndex` exposes documents, symbols, and occurrences—not higher-level
+MCP analysis tools.
 
 ## REPL automation
 
@@ -133,25 +118,12 @@ Use it only when those versions and paths match. For another project, use the
 version-resolved one-off REPL command above; making the bridge configurable is
 future code work.
 
-The bridge is a Scala CLI script that starts a detached JVM controller, which in
-turn launches one Scala CLI REPL process with ScalaSemantic core available.
-Scala CLI resolves the PTY and core dependencies automatically. The init script
-sets `semanticProjectRoot` and defines `semanticIndex` as a lazy value, so the
-library is ready to use without scanning SemanticDB until `semanticIndex` is
-first referenced. The bridge accepts single-line Scala expressions over a
-private Unix socket under `.repl-session/`. `eval` executes arbitrary Scala with
-the current user's permissions; only use it in a trusted workspace and do not
-expose the socket.
+The bridge runs one REPL from its startup directory. `eval` executes Scala with
+the current user's permissions over a private `.repl-session` socket; use only
+in a trusted workspace and do not expose the socket.
 
-Compile the project with SemanticDB enabled before querying its index (in this
-repository, `mill app.compile`). `semanticIndex` is cached after its first
-access; restart the REPL after recompiling if you need it to read the new
-SemanticDB. Stop the session after the task.
+Compile before querying SemanticDB; restart after recompiling to reload the lazy
+index, and stop the bridge when done.
 
-For a one-off REPL, use `--repl-init-script-file` directly. Piped stdin may not be processed reliably by the JLine REPL. If a persistent PTY bridge is unavailable, use a small Scala CLI script with the same core dependency instead of issuing many separate shell snippets.
-
-## Build-tool and script use
-
-- Use the repository's existing build tool and module layout; do not assume sbt or Mill targets from another project.
-- For standalone Scala CLI scripts, declare their dependencies with Scala CLI directives or command-line options.
-- Keep SemanticDB generation and analysis separate: the build emits SemanticDB, while `SemanticIndex` reads and queries it.
+For one-off sessions, use the REPL command above; piped stdin may be unreliable
+with JLine.
