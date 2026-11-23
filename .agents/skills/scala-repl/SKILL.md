@@ -10,7 +10,10 @@ Use this skill when you need to run exploratory Scala expressions or inspect com
 ## Session setup and workflow
 
 1. Read the applicable project instructions and identify the correct project
-   root and build entry point.
+   root and build entry point. Resolve the absolute directory containing this
+   `SKILL.md` from its loaded path and set it as `SKILL_DIR`; it may be outside
+   the project being analyzed. Run REPL commands from the target project root,
+   but reference skill scripts through `SKILL_DIR`.
 2. Check the active MCP tool catalog. Fetch the schema for only the tools
    needed for the task; do not dump every schema by default.
 3. For an unfamiliar Scala API, use `find_symbol` followed by
@@ -26,8 +29,10 @@ Use this skill when you need to run exploratory Scala expressions or inspect com
 6. Keep project contexts isolated. Confirm the active MCP root with
    `get_workspace_root` when available; restore the original root after
    switching with `set_workspace_root`. Pass an explicit root to CLI scripts
-   when analyzing another project instead of relying on `.` defaults. Keep
-   each REPL's `semanticProjectRoot` matched to its project.
+   when analyzing another project instead of relying on `.` defaults. The
+   bridge resolves its project from the startup working directory; start a
+   separate bridge from each target root and keep each REPL's
+   `semanticProjectRoot` matched to its project.
 
 **Current implementation boundary:** the persistent bridge loads
 `scalasemantic-core` and queries SemanticDB directly; it does not invoke MCP
@@ -90,9 +95,10 @@ For SemanticDB inspection without MCP, use the `io.github.mercurievv::scalaseman
 4. Start the REPL from the project root:
 
    ```sh
+   SKILL_DIR="/absolute/path/to/scala-repl"
    scala-cli repl --scala 3.8.4 \
      --dep io.github.mercurievv::scalasemantic-core:0.9.1 \
-     --repl-init-script-file .agents/skills/scala-repl/repl-init.scala
+     --repl-init-script-file "$SKILL_DIR/repl-init.scala"
    ```
 
 The init file resolves the REPL working directory as `semanticProjectRoot` and
@@ -119,10 +125,11 @@ Resolve exact SemanticDB symbols from `semanticIndex.symbols`; do not guess symb
 For a persistent REPL across agent turns, use the Scala CLI/JVM PTY bridge:
 
 ```sh
-scala-cli run .agents/skills/scala-repl/repl-bridge.scala -- start
-scala-cli run .agents/skills/scala-repl/repl-bridge.scala -- eval '1 + 1'
-scala-cli run .agents/skills/scala-repl/repl-bridge.scala -- status
-scala-cli run .agents/skills/scala-repl/repl-bridge.scala -- stop
+SKILL_DIR="/absolute/path/to/scala-repl"
+scala-cli run "$SKILL_DIR/repl-bridge.scala" -- start
+scala-cli run "$SKILL_DIR/repl-bridge.scala" -- eval '1 + 1'
+scala-cli run "$SKILL_DIR/repl-bridge.scala" -- status
+scala-cli run "$SKILL_DIR/repl-bridge.scala" -- stop
 ```
 
 The bridge is a Scala CLI script that starts a detached JVM controller, which in
