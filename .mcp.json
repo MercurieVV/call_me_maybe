@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "scala-semantic": {
+      "type": "local",
+      "command": "scalasemantic-mcp",
+      "args": ["serve", "."],
+      "env": {
+        "SCALASEMANTIC_VERSION": "v0.9.1"
+      }
+    }
+  }
+}

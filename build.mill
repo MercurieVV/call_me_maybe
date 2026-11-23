@@ -1,0 +1,8 @@
+import mill.*, scalalib.*
+
+object app extends ScalaModule {
+  def scalaVersion = "3.8.4"
+  def mvnDeps = Seq(mvn"com.lihaoyi::upickle:4.4.3")
+  def scalacOptions = super.scalacOptions() ++
+    Seq("-Xsemanticdb", "-sourceroot", build.moduleDir.toString)
+}

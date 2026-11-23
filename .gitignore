@@ -1,0 +1,9 @@
+out/
+out-*/
+.scala-build/
+.bloop/
+.metals/
+.bsp/
+.repl-session/
+.idea/
+screenlog.0
