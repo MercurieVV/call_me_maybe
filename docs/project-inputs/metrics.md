@@ -35,12 +35,44 @@ Use the same tasks for a serial-call baseline and the custom Scala/REPL workflow
    visible after the documented MCP freshness check or REPL restart.
 5. From an unfamiliar API name, find its exact symbol, signature, and only the
    referenced model types needed to write a small valid Scala call.
+6. With the same project root and warm index, resolve the `inspectSymbol`
+   method from `semanticIndex.symbols`, then use its exact symbol to call
+   `info`, `ownerChain`, and `occurrencesOf` in one Scala expression. Compare
+   with four separate REPL evaluations: resolve the symbol, then call each
+   method using the returned symbol.
 
 For each task, record whether the answer is correct and complete before
 comparing cost. Run both cold and warm sessions where startup matters; use
 multiple repetitions and report median and p90 rather than a single best run.
-The custom-chain comparisons are not executable until the REPL MCP client
-exists; do not substitute the server's `batch` tool for that implementation.
+MCP-dependent custom-chain comparisons are not executable until the REPL MCP
+client exists; do not substitute the server's `batch` tool for that
+implementation. Task 6 is a local SemanticIndex chain and can be run now.
+
+For task 6, count REPL `eval` requests separately from `SemanticIndex` method
+calls. The expected orchestration comparison is one chained evaluation versus
+four serial evaluations, with the same symbol, `info`, owner chain, and
+occurrence results. No MCP or JSON-RPC calls are involved.
+
+The chained expression for this repository is:
+
+```scala
+semanticIndex.symbols.valuesIterator
+  .find(i => i.displayName == "inspectSymbol" && i.kind.toString == "METHOD")
+  .map(i =>
+    (
+      i.symbol,
+      semanticIndex.info(i.symbol).map(_.displayName),
+      semanticIndex.ownerChain(i.symbol),
+      semanticIndex.occurrencesOf(i.symbol).size
+    )
+  )
+```
+
+The expected result contains symbol
+`_empty_/InspectSymbol$package.inspectSymbol().`, info name `inspectSymbol`,
+an owner chain ending in that symbol, and occurrence count `1`. For the serial
+baseline, evaluate symbol resolution, `info`, `ownerChain`, and `occurrencesOf`
+separately, passing the returned symbol to each later expression.
 
 ## Initial acceptance gates
 
