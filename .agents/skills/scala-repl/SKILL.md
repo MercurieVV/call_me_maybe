@@ -14,19 +14,14 @@ Use this skill when you need to run exploratory Scala expressions or inspect com
    `SKILL.md` from its loaded path and set it as `SKILL_DIR`; it may be outside
    the project being analyzed. Run REPL commands from the target project root,
    but reference skill scripts through `SKILL_DIR`.
-2. Check the active MCP tool catalog. Fetch the schema for only the tools
-   needed for the task; do not dump every schema by default.
-3. For an unfamiliar Scala API, use `find_symbol` followed by
-   `method_signature(detailed = true)`, then inspect only necessary model types
-   with `members` or `symbol_source`.
-4. Check whether SemanticDB is present and fresh. Compile when sources changed
+2. Choose the narrow data path: use direct core access for local compiled
+   SemanticDB; use MCP tools for server capabilities and metadata. The current
+   bridge cannot call MCP, so make remote calls directly and use Scala/REPL for
+   local computation. Do not use the server's `batch` tool as a substitute for
+   custom REPL logic.
+3. Check whether SemanticDB is present and fresh. Compile when sources changed
    or the index is missing/stale; do not rebuild blindly.
-5. Use Scala/REPL for deterministic local analysis and custom computation.
-   Until the bridge has an MCP client, make required remote calls directly
-   with the active MCP tools. Do not use the server's `batch` tool as a
-   substitute for custom REPL logic or start Mill/Scala CLI merely to wrap
-   remote calls.
-6. Keep project contexts isolated. Confirm the active MCP root with
+4. Keep project contexts isolated. Confirm the active MCP root with
    `get_workspace_root` when available; restore the original root after
    switching with `set_workspace_root`. Pass an explicit root to CLI scripts
    when analyzing another project instead of relying on `.` defaults. The
@@ -34,18 +29,11 @@ Use this skill when you need to run exploratory Scala expressions or inspect com
    separate bridge from each target root and keep each REPL's
    `semanticProjectRoot` matched to its project.
 
-**Current implementation boundary:** the persistent bridge loads
-`scalasemantic-core` and queries SemanticDB directly; it does not invoke MCP
-tools from Scala. Custom MCP orchestration in the REPL is a target, not a
-current capability. Until an MCP client is implemented, use direct MCP tool
-calls for remote operations and Scala for local processing.
-
 ## ScalaSemantic API discovery
 
 When you encounter an unfamiliar Scala API, discover its real signatures and
-types before writing calls. The REPL is for running Scala code; it does not
-connect to MCP. Use the active ScalaSemantic MCP tools for discovery, then use
-the REPL to try the resulting Scala code.
+types before writing calls. Use the active ScalaSemantic MCP tools for
+discovery, then use the REPL to try the resulting Scala code.
 
 1. At the start of a task using this skill, check the active MCP tool catalog
    for the ScalaSemantic tool names and descriptions. The catalog is
@@ -91,13 +79,20 @@ For SemanticDB inspection without MCP, use the `io.github.mercurievv::scalaseman
    - Mill: compile the relevant module(s), and ensure normal compilation emits SemanticDB.
    - sbt: compile the relevant project with its SemanticDB compiler plugin/settings enabled.
    - Scala CLI: compile with `--semanticdb` and the project sourceroot; include `--test` when test sources matter.
-3. Use a core library version matching the ScalaSemantic release intended for the project. This repository pins `v0.9.1` in `.mcp.json`, so its Maven artifact version is `0.9.1`.
+3. Resolve `SCALA_VERSION` from the target project's build and
+   `CORE_VERSION` from the active ScalaSemantic server release/configuration.
+   Convert a release such as `v0.9.1` to its Maven artifact version `0.9.1`.
+   In this repository the values are Scala `3.8.4` and core `0.9.1`; do not
+   reuse them for another project without checking its configuration. If the
+   matching core release cannot be established, do not guess.
 4. Start the REPL from the project root:
 
    ```sh
    SKILL_DIR="/absolute/path/to/scala-repl"
-   scala-cli repl --scala 3.8.4 \
-     --dep io.github.mercurievv::scalasemantic-core:0.9.1 \
+   SCALA_VERSION="<target project's Scala version>"
+   CORE_VERSION="<matching ScalaSemantic Maven version>"
+   scala-cli repl --scala "$SCALA_VERSION" \
+     --dep "io.github.mercurievv::scalasemantic-core:$CORE_VERSION" \
      --repl-init-script-file "$SKILL_DIR/repl-init.scala"
    ```
 
@@ -131,6 +126,12 @@ scala-cli run "$SKILL_DIR/repl-bridge.scala" -- eval '1 + 1'
 scala-cli run "$SKILL_DIR/repl-bridge.scala" -- status
 scala-cli run "$SKILL_DIR/repl-bridge.scala" -- stop
 ```
+
+The current bridge is pinned to Scala `3.8.4` and core `0.9.1`, and expects
+`repl-init.scala` under `.agents/skills/scala-repl` inside the target root.
+Use it only when those versions and paths match. For another project, use the
+version-resolved one-off REPL command above; making the bridge configurable is
+future code work.
 
 The bridge is a Scala CLI script that starts a detached JVM controller, which in
 turn launches one Scala CLI REPL process with ScalaSemantic core available.
