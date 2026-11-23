@@ -12,8 +12,9 @@ without loading the entire API into context.
 - On skill use, the agent can identify the currently available ScalaSemantic
   MCP tools from the active tool catalog; it does not rely on a stale
   hand-maintained inventory.
-- For a selected MCP tool, the agent can retrieve its input schema and output
-  schema and use those as the authoritative JSON wire contract.
+- For a selected MCP tool, the agent can read its request arguments from the
+  active tool definition and retrieve its output schema; together these define
+  the JSON wire contract.
 - For Scala library APIs, the agent can resolve exact symbols and retrieve
   method signatures, parameter details, members, and relevant referenced model
   types on demand.
@@ -29,11 +30,13 @@ without loading the entire API into context.
 ## Decisions and constraints
 
 - MCP schemas and Scala library signatures are different surfaces:
-  - MCP input/output schemas are authoritative for calls to server tools.
+  - Active MCP tool definitions and `output_schema` responses define the JSON
+    wire contract for server calls.
   - Scala signatures, docs, and members are authoritative for code using the
     Scala library.
-- For MCP schemas, use `output_schema` for the relevant tool. Request all typed
-  tool schemas only when a broad inventory is explicitly useful.
+- For MCP request arguments, use the active tool definition. Use
+  `output_schema` for the relevant response shape; request every typed tool's
+  output schema only when a broad inventory is explicitly useful.
 - For library signatures, use `find_symbol` followed by `method_signature`;
   use `members` to inspect a type and `symbol_source` for definition details.
   Resolve referenced model types only when needed.
@@ -47,8 +50,9 @@ without loading the entire API into context.
 
 ## Example discovery flow
 
-1. Inspect the active MCP tool descriptions and retrieve the schema for a
-   relevant tool, for example `output_schema(tool = "find_symbol")`.
+1. Inspect the active MCP tool definitions for request arguments and retrieve
+   the response schema for a relevant tool, for example
+   `output_schema(tool = "find_symbol")`.
 2. Resolve a Scala type, for example `find_symbol(query = "SemanticIndex",
    exact = true, kind = "CLASS")`.
 3. Pass the returned exact symbol to `method_signature(detailed = true)` and

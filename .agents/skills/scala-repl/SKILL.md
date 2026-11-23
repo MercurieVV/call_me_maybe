@@ -41,9 +41,10 @@ the REPL to try the resulting Scala code.
 1. At the start of a task using this skill, check the active MCP tool catalog
    for the ScalaSemantic tool names and descriptions. The catalog is
    authoritative and may differ between environments.
-2. If you need to call an MCP tool, retrieve that tool's input/output schema
-   with `output_schema(tool = "...")`. This schema is the JSON wire contract;
-   omit `tool` only when you need every typed tool schema.
+2. Use the active tool catalog as the request-argument contract. If you need
+   the response shape, retrieve that tool's output schema with
+   `output_schema(tool = "...")`; omit `tool` only when you need every typed
+   tool's output schema.
 3. If you need a Scala method, resolve its name with `find_symbol`. Pass the
    exact returned symbol to `method_signature(detailed = true)`. Use `members`
    to inspect the owning type and `symbol_source` for docs or implementation.
