@@ -72,7 +72,7 @@ execute scripts or automatically call tools.
 
 ## Direct ScalaSemantic core access
 
-For SemanticDB inspection without MCP, use the `io.github.mercurievv::scalasemantic-core` library and `SemanticIndex`. Do not launch `scalasemantic-mcp`, call it as code in REPL.
+For SemanticDB inspection without MCP, use the `io.github.mercurievv::scalasemantic-core` library and `SemanticIndex`. Do not launch `scalasemantic-mcp`, call its CLI, or send JSON-RPC requests for this workflow.
 
 1. Work from the Scala project root.
 2. Compile the relevant module with SemanticDB enabled. In this repository, run `mill app.compile`; check `build.mill` for `-Xsemanticdb` and the project sourceroot. For other projects, inspect their build before choosing a compile command:
