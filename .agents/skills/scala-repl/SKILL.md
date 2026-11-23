@@ -18,12 +18,15 @@ Use this skill when you need to run exploratory Scala expressions or inspect com
    with `members` or `symbol_source`.
 4. Check whether SemanticDB is present and fresh. Compile when sources changed
    or the index is missing/stale; do not rebuild blindly.
-5. Put deterministic sequencing and result handling in Scala. Until the REPL
-   has a programmatic MCP client, use one `scala-semantic` `batch` call as the
-   interim way to avoid serial LLM/MCP round trips.
-6. Keep project contexts isolated. The current bridge runs one REPL per root;
-   the active MCP server root is stateful, so record and restore it when
-   switching roots.
+5. For deterministic MCP-only sequences, use one native `scala-semantic`
+   `batch` call rather than serial MCP calls. Do not start Mill or Scala CLI
+   just to wrap a single batch call; use Scala/REPL when it adds local
+   computation. The current REPL bridge cannot invoke MCP directly.
+6. Keep project contexts isolated. Confirm the active MCP root with
+   `get_workspace_root` when available; restore the original root after
+   switching with `set_workspace_root`. Pass an explicit root to CLI scripts
+   when analyzing another project instead of relying on `.` defaults. Keep
+   each REPL's `semanticProjectRoot` matched to its project.
 
 **Current implementation boundary:** the persistent bridge loads
 `scalasemantic-core` and queries SemanticDB directly; it does not invoke MCP
@@ -51,6 +54,11 @@ the REPL to try the resulting Scala code.
 4. Follow parameter and return types with additional `find_symbol`,
    `method_signature`, or `members` calls only as needed. Do not guess symbol
    strings or load the whole library by default.
+5. In a `batch`, inspect every call's `ok` status. Later calls still run after
+   an earlier call fails, so check that a search returned the expected
+   candidate before depending on its `$ref`. If a search may be empty or
+   ambiguous, resolve it first and batch only the calls that use its exact
+   symbol.
 
 For example, to discover `SemanticIndex`'s API, first resolve the type:
 
