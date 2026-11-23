@@ -103,6 +103,31 @@ Resolve symbols from `semanticIndex.symbols` rather than guessing strings.
 `SemanticIndex` exposes documents, symbols, and occurrences—not higher-level
 MCP analysis tools.
 
+Before each REPL eval, check whether the requested local results form a
+deterministic dependency chain. If several `SemanticIndex` calls use the same
+symbol, resolve it and compute all requested results in one Scala expression,
+returning a small tuple instead of sending the symbol back to the LLM for
+follow-up evals. For multiple symbols, resolve them in one collection
+expression and map each to its needed results. For example, replace
+`targetMethod` with the requested name:
+
+```scala
+semanticIndex.symbols.valuesIterator
+  .find(i => i.displayName == "targetMethod" && i.kind.toString == "METHOD")
+  .map(i =>
+    (
+      i.symbol,
+      semanticIndex.info(i.symbol).map(_.displayName),
+      semanticIndex.ownerChain(i.symbol),
+      semanticIndex.occurrencesOf(i.symbol).size
+    )
+  )
+```
+
+Use separate evals only when the next query depends on an LLM decision after
+inspecting an earlier result, or when combining results would be unwieldy. This
+is Scala composition inside the REPL, not the MCP `batch` tool.
+
 ## REPL automation
 
 For a persistent REPL across agent turns, use the Scala CLI/JVM PTY bridge:
