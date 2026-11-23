@@ -18,9 +18,11 @@ Use this skill when you need to run exploratory Scala expressions or inspect com
    tool for custom REPL logic.
 3. Check SemanticDB freshness; compile only when sources changed or the index
    is missing/stale.
-4. Keep roots isolated: confirm and restore the active MCP root when switching.
-   The bridge resolves its root from its startup directory, so run one bridge
-   per target root; pass explicit roots to CLI tools instead of relying on `.`.
+4. Align the MCP root and REPL `semanticProjectRoot` with the SemanticDB root
+   containing the target module(s); compile every module whose SemanticDB you
+   need. Confirm and restore the MCP root when switching. The bridge takes its
+   root from its startup directory, so run one bridge per target root and pass
+   explicit roots to CLI tools.
 
 ## ScalaSemantic API discovery
 
