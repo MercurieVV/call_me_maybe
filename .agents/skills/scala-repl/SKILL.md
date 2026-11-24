@@ -106,22 +106,18 @@ MCP analysis tools.
 Before each REPL eval, check whether the requested local results form a
 deterministic dependency chain. If several `SemanticIndex` calls use the same
 symbol, resolve it and compute all requested results in one Scala expression,
-returning a small tuple instead of sending the symbol back to the LLM for
+printing a small tuple instead of sending the symbol back to the LLM for
 follow-up evals. For multiple symbols, resolve them in one collection
-expression and map each to its needed results. For example, replace
-`targetMethod` with the requested name:
+expression and map each to its needed results.
+
+With the bridge, send one single-line expression. Wrap the intended result in
+`println(...)` when the LLM should see only deliberate output: `println`
+returns `Unit`, so the REPL's implicit value display is suppressed. A bare
+expression still displays its REPL result. For example, replace `targetMethod`
+with the requested name:
 
 ```scala
-semanticIndex.symbols.valuesIterator
-  .find(i => i.displayName == "targetMethod" && i.kind.toString == "METHOD")
-  .map(i =>
-    (
-      i.symbol,
-      semanticIndex.info(i.symbol).map(_.displayName),
-      semanticIndex.ownerChain(i.symbol),
-      semanticIndex.occurrencesOf(i.symbol).size
-    )
-  )
+println(semanticIndex.symbols.valuesIterator.find(i => i.displayName == "targetMethod" && i.kind.toString == "METHOD").map(i => (i.symbol, semanticIndex.info(i.symbol).map(_.displayName), semanticIndex.ownerChain(i.symbol), semanticIndex.occurrencesOf(i.symbol).size)))
 ```
 
 Use separate evals only when the next query depends on an LLM decision after
