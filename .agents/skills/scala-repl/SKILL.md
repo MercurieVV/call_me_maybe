@@ -174,12 +174,9 @@ SCALA
 scala_repl_add stop
 ```
 
-Stateless mode (no bridge, fresh JVM per call, runs in the current directory).
-`os-lib` and `scalasemantic-core` are preloaded: `semanticProjectRoot` and a
-lazy `semanticIndex` (`SemanticIndex`) are in scope, as in `repl-init.scala`.
-Compile the project with SemanticDB first. The hook allows `scala_repl_add` only as the whole bash
-command, so for code containing a single quote (`'`) or shell characters outside
-quotes, pass it through a quoted heredoc:
+`run` is an alias of the default eval (same bridge, state kept). The hook allows
+`scala_repl_add` only as the whole bash command, so for code containing a single
+quote (`'`) or shell characters outside quotes, pass it through a quoted heredoc:
 
 ```sh
 scala_repl_add run 'println(os.read(os.pwd / "README.md"))'
@@ -202,7 +199,7 @@ println(findSymbols("CatHeadersFlow").map(i => (i.symbol, i.kind)))
 ```
 
 Run it with `scala_repl_add start` + `eval`: the index loads once (~15 s for
-`~/cat`) and stays loaded. In `run` mode it reloads on every call. Paths are
+`~/cat`) and stays loaded. Paths are
 relative to the repo's SemanticDB root. Text scanning is for non-Scala files
 (yml, conf, json, md).
 
@@ -228,10 +225,12 @@ printed by `start`) for the preloaded helpers plus the live scala-semantic MCP
 tool catalog and `SemanticIndex` API, generated at run time (cached; refreshed
 when `scalasemantic-mcp` or `mcp-tools.sc` changes).
 
-Quick one-line commands (no heredoc; the bridge auto-starts): `scala_repl_add usages '<regex>'`
-(symbol definitions and references across all repos under the root), `symbols '<regex>'`,
-`search '<regex>'` (text search incl. config files in all repos). Prefer them over MCP
-`search_text`/`set_workspace_root` hopping and over `os.proc` grep/rg: they cover every repo at once.
+Quick one-line commands were removed: compose chains in one program instead. The bridge
+auto-starts on the first `scala_repl_add` call and keeps `val`/`def` state, so `run` is an
+alias of the default eval. `corpus: Vector[Doc]` (every text/config file, read once) and
+`searchText(regex, limit, pathPrefix, exts)` replace grep/rg; filter and group them in Scala
+instead of piping. `help` lists the preloaded functions (generated from `repl-init.scala`)
+and examples.
 
 `scala_repl_add index [<repo-dir>] [--force]` compiles an sbt repo with SemanticDB
 (`set ThisBuild / semanticdbEnabled := true`, `Test/compile`; no build files are

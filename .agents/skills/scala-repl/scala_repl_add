@@ -10,10 +10,8 @@ export SCALA_REPL_SKILL_DIR="$SKILL_DIR"
 usage() {
   cat <<'EOF'
 Usage: scala_repl_add start|status|stop
-       scala_repl_add usages|symbols|search '<regex>' [limit]
        scala_repl_add index [<repo-dir>] [--force]
-       scala_repl_add [eval] <Scala code>
-       scala_repl_add run <Scala code>    (stateless, no bridge; os-lib available)
+       scala_repl_add [eval|run] <Scala code>    (bridge auto-starts; state is kept between calls)
        scala_repl_add <<'SCALA'
        <multiline Scala code>
        SCALA
@@ -27,7 +25,7 @@ reject_text_scan() {
     || { [[ "$code" =~ os\.proc ]] && [[ "$code" =~ (\"grep\"|\"rg\"|\"find\"|\"ag\") ]]; }; then
     {
       echo "scala_repl_add: text scan of Scala sources rejected."
-      echo "Use usagesOf(\"Name\") / findSymbols(\"regex\") / semanticIndex, or the one-liners: scala_repl_add usages|symbols|search '<regex>'."
+      echo "Use usagesOf(\"Name\") / findSymbols(\"regex\") / semanticIndex for Scala code; searchText / corpus for config and other text (see: scala_repl_add help)."
       echo "For repos without SemanticDB run: scala_repl_add index <repo-dir>  (compiles it with SemanticDB, ~5 min; 'scala_repl_add index' lists repo roots)."
       echo "Only for non-Scala files add the comment // text-scan-ok to the code and retry."
     } >&2
@@ -37,6 +35,8 @@ reject_text_scan() {
 
 print_api() {
   cat "$SKILL_DIR/repl-api.txt"
+  echo "Preloaded in the REPL (generated from repl-init.scala):"
+  grep -E '^(def|lazy val|val|case class) ' "$SKILL_DIR/repl-init.scala" | sed -E 's/ =$//; s/^/  /'
   echo
   scala-cli run -q --suppress-outdated-dependency-warning --suppress-experimental-feature-warning \
     "$SKILL_DIR/mcp-tools.sc" -- "$ROOT" 2>/dev/null || echo "(tool catalog unavailable: scalasemantic-mcp not runnable)"
@@ -64,18 +64,6 @@ ensure_bridge() {
 }
 
 case "${1:-}" in
-  usages|symbols|search)
-    cmd="$1"; shift
-    if [[ $# -lt 1 ]]; then usage >&2; exit 2; fi
-    pattern="$1"; limit="${2:-}"
-    ensure_bridge
-    case "$cmd" in
-      usages)  code="println(cmdUsages(\"\"\"$pattern\"\"\", ${limit:-50}))" ;;
-      symbols) code="println(cmdSymbols(\"\"\"$pattern\"\"\", ${limit:-50}))" ;;
-      search)  code="println(cmdSearch(\"\"\"$pattern\"\"\", ${limit:-60}))" ;;
-    esac
-    exec scala-cli run -q "$SKILL_DIR/repl-bridge.scala" -- --root "$ROOT" eval "$code"
-    ;;
   index)
     shift
     force=""; targets=()
@@ -104,28 +92,6 @@ case "${1:-}" in
     ;;
   run)
     shift
-    if [[ $# -eq 0 ]]; then
-      if [[ -t 0 ]]; then
-        usage >&2
-        exit 2
-      fi
-      code="$(cat)"
-    else
-      code="$*"
-    fi
-    reject_text_scan "$code"
-    cd "$ROOT"
-    script="$(mktemp --suffix=.sc)"
-    trap 'rm -f "$script"' EXIT
-    {
-      echo "//> using scala ${SCALA_REPL_SCALA_VERSION:-3.8.4}"
-      echo "//> using dep com.lihaoyi::os-lib:0.11.5"
-      echo "//> using dep io.github.mercurievv::scalasemantic-core:${SCALA_REPL_CORE_VERSION:-0.9.1}"
-      grep -v '^println(' "$SKILL_DIR/repl-init.scala"
-      printf '%s\n' "$code"
-    } > "$script"
-    scala-cli run -q --suppress-outdated-dependency-warning --suppress-experimental-feature-warning "$script"
-    exit $?
     ;;
   start|status|stop)
     action="$1"
@@ -158,4 +124,5 @@ if [[ -z "$code" ]]; then
 fi
 
 reject_text_scan "$code"
-exec scala-cli run "$SKILL_DIR/repl-bridge.scala" -- --root "$ROOT" eval "$code"
+ensure_bridge
+exec scala-cli run -q "$SKILL_DIR/repl-bridge.scala" -- --root "$ROOT" eval "$code"

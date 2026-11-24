@@ -1,30 +1,29 @@
-Quick commands (one line, no heredoc; the bridge starts by itself, first call loads the index ~15 s):
-  scala_repl_add usages '<name regex>' [limit]     symbol-resolved definitions + references, as repo/path:line ROLE name
-  scala_repl_add symbols '<name regex>' [limit]    kind, name and full symbol string
-  scala_repl_add search '<regex>' [limit]          text search over code and config (.conf .yml .json .sbt .md ...) in ALL repos under the root
-  scala_repl_add index [<repo-dir>] [--force]      compile a repo with SemanticDB when usages/symbols find nothing
-Use `usages`/`symbols` for Scala code questions, `search` for config and non-Scala text.
-
 Write code as a multi-line quoted heredoc (always works, no quoting issues):
-  scala_repl_add <<'SCALA'        (bridge REPL, state kept; after `start`)
-  scala_repl_add run <<'SCALA'    (stateless, fresh JVM per call)
+  scala_repl_add <<'SCALA'
   ...several lines of Scala...
   SCALA
-Compose several queries in one program and println only the compact result.
+The bridge starts by itself; the first call loads the index (~15 s for a big root). State (val/def) is kept
+between calls, so build on earlier results instead of recomputing. `run` is an alias of the default eval.
+Compose the whole chain in one program and println only the compact result. Filter, group and sort in Scala;
+never pipe, redirect to files, or call grep/rg/sed/awk.
 
-Preloaded (no imports needed):
-  os                                    os-lib: os.read, os.write, os.list, os.walk, os.proc(...).call()
-  semanticProjectRoot: String           directory the REPL started in
-  semanticIndex: SemanticIndex          lazy; compiled SemanticDB of every repo under the root
-  findSymbols(regex: String): Vector[SymbolInformation]
-  usagesOf(regex: String, limit: Int = 50): Vector[String]    "repo/path:line ROLE name"
-  searchText(regex: String, limit: Int = 60, exts: Set[String] = Set.empty): Vector[String]   "repo/path:line: text" over all repos
-  Try, Using, CollectionConverters.* imported
+Examples:
+  // who uses a class/method, grouped by file
+  usagesOf("OauthTokenService", 500).groupBy(_.takeWhile(_ != ':')).view.mapValues(_.size).toSeq.sortBy(-_._2).foreach(println)
+  // find a symbol, then its owner chain and reference count
+  findSymbols("^getOAuthToken$").foreach(i => println((i.symbol, semanticIndex.ownerChain(i.symbol), semanticIndex.occurrencesOf(i.symbol).size)))
+  // config / non-Scala text in one repo, with line numbers
+  corpus.filter(d => d.path.startsWith("P-Foo/") && d.path.endsWith(".conf")).foreach(d =>
+    d.lines.zipWithIndex.filter(_._1.contains("proxy")).foreach((l, i) => println(d.path + ":" + (i + 1) + ": " + l.trim)))
+  // text hits restricted to a path and extension
+  searchText("(?i)proxy", 100, pathPrefix = "P-Foo/", exts = Set("yml", "conf")).foreach(println)
+
+Notes: os (os-lib), Try, Using and CollectionConverters.* are imported. semanticIndex is lazy and covers the compiled
+SemanticDB of every repo under the root (SemanticIndex: symbols, occurrencesOf, info, ownerChain, ...).
 
 Rules:
-  Use these for Scala code search BEFORE any text scan. Text scans (".scala" strings, os.proc grep/rg/find)
-  are rejected unless the code contains the comment // text-scan-ok (non-Scala files only).
+  Use semanticIndex/findSymbols/usagesOf for Scala code questions BEFORE any text scan. Text scans of Scala sources
+  (".scala" strings, os.proc grep/rg/find) are rejected unless the code contains the comment // text-scan-ok.
   Repo has no SemanticDB? Do not text-scan: run `scala_repl_add index <repo-dir>` (sbt compile with SemanticDB,
-  ~5 min, run it in async mode), then `stop`+`start` the bridge. `scala_repl_add index` lists repo roots.
+  ~5 min, run it in async mode), then `scala_repl_add stop`; the bridge restarts on the next call.
   `index --force` rebuilds after source changes.
-  Prefer `start` + eval: the index loads once (~15 s for ~/cat); `run` reloads it on every call.
