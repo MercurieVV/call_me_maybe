@@ -1,0 +1,19 @@
+Write code as a multi-line quoted heredoc (always works, no quoting issues):
+  scala_repl_add <<'SCALA'        (bridge REPL, state kept; after `start`)
+  scala_repl_add run <<'SCALA'    (stateless, fresh JVM per call)
+  ...several lines of Scala...
+  SCALA
+Compose several queries in one program and println only the compact result.
+
+Preloaded (no imports needed):
+  os                                    os-lib: os.read, os.write, os.list, os.walk, os.proc(...).call()
+  semanticProjectRoot: String           directory the REPL started in
+  semanticIndex: SemanticIndex          lazy; compiled SemanticDB of every repo under the root
+  findSymbols(regex: String): Vector[SymbolInformation]
+  usagesOf(regex: String, limit: Int = 50): Vector[String]    "file:line ROLE name"
+  Try, Using, CollectionConverters.* imported
+
+Rules:
+  Use these for Scala code search BEFORE any text scan. Text scans (".scala" strings, os.proc grep/rg/find)
+  are rejected unless the code contains the comment // text-scan-ok (repos without SemanticDB, non-Scala files).
+  Prefer `start` + eval: the index loads once (~15 s for ~/cat); `run` reloads it on every call.

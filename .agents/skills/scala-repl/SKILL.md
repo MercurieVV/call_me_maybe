@@ -223,6 +223,11 @@ The bridge runs one REPL from its startup directory. `eval` executes Scala with
 the current user's permissions over a private `.repl-session` socket; use only
 in a trusted workspace and do not expose the socket.
 
+Write REPL code as multi-line quoted heredocs. Run `scala_repl_add help` (also
+printed by `start`) for the preloaded helpers plus the live scala-semantic MCP
+tool catalog and `SemanticIndex` API, generated at run time (cached; refreshed
+when `scalasemantic-mcp` or `mcp-tools.sc` changes).
+
 `scala_repl_add` rejects code that references Scala sources (a `".scala"` or
 `"scala"` string, `.sbt`) or runs `os.proc` grep/rg/find, unless it uses
 `semanticIndex`, `findSymbols` or `usagesOf`, or contains the comment

@@ -32,27 +32,16 @@ reject_text_scan() {
   fi
 }
 
+print_api() {
+  cat "$SKILL_DIR/repl-api.txt"
+  echo
+  scala-cli run -q --suppress-outdated-dependency-warning --suppress-experimental-feature-warning \
+    "$SKILL_DIR/mcp-tools.sc" -- "$ROOT" 2>/dev/null || echo "(tool catalog unavailable: scalasemantic-mcp not runnable)"
+}
+
 case "${1:-}" in
   -h|--help|help)
-    cat <<'EOF'
-Preloaded in both the bridge REPL and `run` mode (no import needed):
-  os                    os-lib, e.g. os.read, os.walk, os.list, os.proc(...).call()
-  SemanticIndex         scalasemantic-core
-  semanticProjectRoot   String, the directory the REPL was started in
-  semanticIndex         lazy SemanticIndex (compiled SemanticDB of all repos under the root)
-  findSymbols(regex)    symbols whose displayName matches
-  usagesOf(regex, 50)   "file:line ROLE name" for every occurrence of matching symbols
-  CollectionConverters.*, Try, Using are imported
-
-For Scala code search, use findSymbols/usagesOf/semanticIndex BEFORE os.walk + regex over
-source text: it resolves real symbols, not strings. The first use loads the index (~15 s for
-~/cat). Use `start` + `eval` so it loads once; `run` reloads it on every call.
-Use os.walk/os.read only for non-Scala files or when a repo has no SemanticDB.
-Scala source references (".scala"/"scala" string, ".sbt") and os.proc grep/rg/find are rejected unless the
-code uses semanticIndex/findSymbols/usagesOf or contains the comment // text-scan-ok.
-Use a quoted heredoc for code containing a single quote.
-EOF
-    echo
+    print_api
     usage
     exit 0
     ;;
@@ -88,6 +77,7 @@ EOF
       usage >&2
       exit 2
     fi
+    if [[ "$action" == start ]]; then print_api; echo; fi
     exec scala-cli run "$SKILL_DIR/repl-bridge.scala" -- --root "$ROOT" "$action"
     ;;
   eval)
