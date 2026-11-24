@@ -1,11 +1,33 @@
 ---
 name: scala-repl
-description: Bootstrap project-aware Scala REPL workflows, inspect SemanticDB, discover ScalaSemantic MCP schemas/signatures, and build efficient tool chains.
+description: Use Scala REPL programs for deterministic multi-step automation across domains; includes project-aware SemanticDB and ScalaSemantic workflows.
 ---
 
-# Scala REPL, SemanticDB, and tool chains
+# Programmatic automation with Scala REPL
 
-Use this skill when you need to run exploratory Scala expressions or inspect compiled Scala code interactively. Prefer a Scala REPL over repeated one-off shell evaluations when several related questions can be answered in one session.
+Use this skill for deterministic automation in any domain—not only SemanticDB
+or ScalaSemantic. **The Scala REPL is the default runtime for automation.**
+When a task involves scripting, data processing, repeated commands, or
+chaining predictable steps, put that logic in a REPL program/eval instead of
+running it as Bash, Python, or another helper script. Keep intermediate
+values in the REPL and print only the compact result the LLM needs; this
+avoids separate tool round-trips and LLM turns for deterministic substeps.
+
+Use Bash as thin transport to start/control the bridge or invoke it with
+`./scala_repl_add`; do not put automation logic in Bash pipelines or scripts
+when the REPL can perform it. Likewise, do not reach for Python or another
+script runtime for glue, transformations, or orchestration by default. Use
+external commands only for operations that genuinely require OS-specific
+behavior or a tool with no usable Scala interface, and keep the rest of the
+workflow in Scala where practical.
+
+This bridge runs Scala code and cannot call MCP tools directly. Call tools
+through their supported agent interfaces; use the REPL for deterministic
+computation over available local data or supported libraries, and do not
+handcraft MCP/JSON-RPC requests as a workaround. The SemanticDB and
+ScalaSemantic workflows below are domain-specific examples of the broader
+automation pattern. Keep the LLM in the loop for judgment, user choices, or
+decisions that genuinely depend on interpreting intermediate results.
 
 ## Session setup and workflow
 
@@ -24,7 +46,7 @@ Use this skill when you need to run exploratory Scala expressions or inspect com
    root from its startup directory, so run one bridge per target root and pass
    explicit roots to CLI tools.
 
-## ScalaSemantic API discovery
+## Example: ScalaSemantic API discovery
 
 For an unfamiliar Scala API, use the active ScalaSemantic tool catalog and
 resolve real signatures before writing code:
@@ -56,7 +78,7 @@ MCP tool schemas describe only those tools, not the Scala library. Use
 JSON/JSON-RPC or the `scalasemantic-mcp` server/CLI. Loading this skill does not
 execute scripts or automatically call tools.
 
-## Direct ScalaSemantic core access
+## Example: Direct ScalaSemantic core access
 
 For local compiled SemanticDB, import `io.github.mercurievv::scalasemantic-core`
 and use `SemanticIndex` from the REPL.
