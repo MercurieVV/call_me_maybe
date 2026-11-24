@@ -110,14 +110,24 @@ printing a small tuple instead of sending the symbol back to the LLM for
 follow-up evals. For multiple symbols, resolve them in one collection
 expression and map each to its needed results.
 
-With the bridge, send one single-line expression. Wrap the intended result in
-`println(...)` when the LLM should see only deliberate output: `println`
-returns `Unit`, so the REPL's implicit value display is suppressed. A bare
-expression still displays its REPL result. For example, replace `targetMethod`
-with the requested name:
+The bridge accepts normally formatted multi-line code and filters automatic
+REPL echoes of expression results and top-level definitions. It returns
+explicit program output (such as `println`) and diagnostics; bare expressions
+produce no output, so print only the compact result the LLM needs. For example,
+replace `targetMethod` with the requested name:
 
 ```scala
-println(semanticIndex.symbols.valuesIterator.find(i => i.displayName == "targetMethod" && i.kind.toString == "METHOD").map(i => (i.symbol, semanticIndex.info(i.symbol).map(_.displayName), semanticIndex.ownerChain(i.symbol), semanticIndex.occurrencesOf(i.symbol).size)))
+val result = semanticIndex.symbols.valuesIterator
+  .find(i => i.displayName == "targetMethod" && i.kind.toString == "METHOD")
+  .map(i =>
+    (
+      i.symbol,
+      semanticIndex.info(i.symbol).map(_.displayName),
+      semanticIndex.ownerChain(i.symbol),
+      semanticIndex.occurrencesOf(i.symbol).size
+    )
+  )
+println(result)
 ```
 
 Use separate evals only when the next query depends on an LLM decision after
@@ -126,14 +136,20 @@ is Scala composition inside the REPL, not the MCP `batch` tool.
 
 ## REPL automation
 
-For a persistent REPL across agent turns, use the Scala CLI/JVM PTY bridge:
+In this repository, use the project-local `./scala_repl_add` command to manage
+the persistent REPL or send code to its bridge:
 
 ```sh
-SKILL_DIR="/absolute/path/to/scala-repl"
-scala-cli run "$SKILL_DIR/repl-bridge.scala" -- start
-scala-cli run "$SKILL_DIR/repl-bridge.scala" -- eval '1 + 1'
-scala-cli run "$SKILL_DIR/repl-bridge.scala" -- status
-scala-cli run "$SKILL_DIR/repl-bridge.scala" -- stop
+./scala_repl_add start
+./scala_repl_add status
+./scala_repl_add 'println(1 + 1)'
+
+./scala_repl_add <<'SCALA'
+val result = 1 + 1
+println(result)
+SCALA
+
+./scala_repl_add stop
 ```
 
 The current bridge is pinned to Scala `3.8.4` and core `0.9.1`, and expects

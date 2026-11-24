@@ -267,21 +267,47 @@ object ReplBridge:
 
     def evaluate(code: String): String =
       if code.trim.isEmpty then throw new IllegalArgumentException("Provide a Scala expression or statement")
-      if code.contains("\n") || code.contains("\r") then
-        throw new IllegalArgumentException("Send one complete Scala expression per eval request")
       val child = process.getOrElse(throw new RuntimeException("Scala REPL is not running"))
       val input = child.getOutputStream
-      input.write((code + "\r").getBytes(StandardCharsets.UTF_8))
-      input.flush()
-      val result = readPrompt(Duration.ofSeconds(60))
-      val nonce = java.util.UUID.randomUUID().toString.replace("-", "")
-      val marker = s"SCALA_REPL_DONE_$nonce"
-      val markerCommand = s"""println("SCALA_REPL_DONE_" + "$nonce")"""
-      input.write((markerCommand + "\r").getBytes(StandardCharsets.UTF_8))
-      input.flush()
-      readUntil(marker.getBytes(StandardCharsets.UTF_8), Duration.ofSeconds(30))
-      readPrompt(Duration.ofSeconds(30))
-      cleanOutput(result, code)
+      def submit(submittedCode: String): Array[Byte] =
+        input.write((submittedCode + "\r").getBytes(StandardCharsets.UTF_8))
+        input.flush()
+        readPrompt(Duration.ofSeconds(60))
+      def synchronize(): Unit =
+        val nonce = java.util.UUID.randomUUID().toString.replace("-", "")
+        val marker = s"SCALA_REPL_DONE_$nonce"
+        val markerCommand = s"""println("$marker")"""
+        input.write((markerCommand + "\r").getBytes(StandardCharsets.UTF_8))
+        input.flush()
+        readUntil(marker.getBytes(StandardCharsets.UTF_8), Duration.ofSeconds(30))
+        readPrompt(Duration.ofSeconds(30))
+      val normalizedCode = code.replace("\r\n", "\n").replace("\r", "\n")
+      if normalizedCode.trim.startsWith(":") && !normalizedCode.contains("\n") then
+        val result = submit(normalizedCode)
+        synchronize()
+        cleanOutput(result, normalizedCode)
+      else
+        val outputMarker = s"SCALA_REPL_OUTPUT_${java.util.UUID.randomUUID().toString.replace("-", "")}"
+        val sourceFile = Files.createTempFile(root.resolve(".repl-session"), "eval-", ".scala")
+        try
+          val separator = if normalizedCode.endsWith("\n") then "" else "\n"
+          Files.writeString(
+            sourceFile,
+            s"""$normalizedCode${separator}println("$outputMarker")\n""",
+            StandardCharsets.UTF_8
+          )
+          val submittedCode = s":load .repl-session/${sourceFile.getFileName}"
+          val result = submit(submittedCode)
+          synchronize()
+          val output = cleanOutput(result, submittedCode)
+          val markerIndex = output.indexOf(outputMarker)
+          if markerIndex < 0 then
+            val details =
+              if output.nonEmpty then output
+              else "Scala REPL evaluation failed before its completion marker was printed"
+            throw new RuntimeException(s"Scala REPL evaluation failed:\n$details")
+          output.substring(0, markerIndex).trim
+        finally Files.deleteIfExists(sourceFile)
 
     def stop(): Unit =
       process.foreach { child =>

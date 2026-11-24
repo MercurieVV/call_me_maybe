@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BRIDGE="$ROOT/.agents/skills/scala-repl/repl-bridge.scala"
+
+usage() {
+  cat <<'EOF'
+Usage: ./scala_repl_add start|status|stop
+       ./scala_repl_add [eval] <Scala code>
+       ./scala_repl_add <<'SCALA'
+       <multiline Scala code>
+       SCALA
+EOF
+}
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  start|status|stop)
+    action="$1"
+    shift
+    if [[ $# -ne 0 ]]; then
+      usage >&2
+      exit 2
+    fi
+    exec scala-cli run "$BRIDGE" -- --root "$ROOT" "$action"
+    ;;
+  eval)
+    shift
+    ;;
+esac
+
+if [[ $# -eq 0 ]]; then
+  if [[ -t 0 ]]; then
+    usage >&2
+    exit 2
+  fi
+  code="$(cat)"
+else
+  code="$*"
+fi
+
+if [[ -z "$code" ]]; then
+  usage >&2
+  exit 2
+fi
+
+exec scala-cli run "$BRIDGE" -- --root "$ROOT" eval "$code"
