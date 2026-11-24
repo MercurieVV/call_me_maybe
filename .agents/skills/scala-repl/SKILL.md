@@ -228,6 +228,12 @@ printed by `start`) for the preloaded helpers plus the live scala-semantic MCP
 tool catalog and `SemanticIndex` API, generated at run time (cached; refreshed
 when `scalasemantic-mcp` or `mcp-tools.sc` changes).
 
+`scala_repl_add index [<repo-dir>] [--force]` compiles an sbt repo with SemanticDB
+(`set ThisBuild / semanticdbEnabled := true`, `Test/compile`; no build files are
+changed). Without arguments it lists repo roots and their index status. Use it
+instead of text scanning when a repo has no `.semanticdb` files, then restart
+the bridge.
+
 `scala_repl_add` rejects code that references Scala sources (a `".scala"` or
 `"scala"` string, `.sbt`) or runs `os.proc` grep/rg/find, unless it uses
 `semanticIndex`, `findSymbols` or `usagesOf`, or contains the comment

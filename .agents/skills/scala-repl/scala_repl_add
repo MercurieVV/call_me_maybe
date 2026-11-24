@@ -26,7 +26,8 @@ reject_text_scan() {
     {
       echo "scala_repl_add: text scan of Scala sources rejected."
       echo "Use usagesOf(\"Name\") / findSymbols(\"regex\") / semanticIndex (resolves real symbols)."
-      echo "For repos without SemanticDB or non-Scala files, add the comment // text-scan-ok to the code and retry."
+      echo "For repos without SemanticDB run: scala_repl_add index <repo-dir>  (compiles it with SemanticDB, ~5 min; 'scala_repl_add index' lists repo roots)."
+      echo "Only for non-Scala files add the comment // text-scan-ok to the code and retry."
     } >&2
     exit 3
   fi
@@ -39,7 +40,42 @@ print_api() {
     "$SKILL_DIR/mcp-tools.sc" -- "$ROOT" 2>/dev/null || echo "(tool catalog unavailable: scalasemantic-mcp not runnable)"
 }
 
+index_repo() {
+  local dir="$1" force="$2" n
+  n="$(find "$dir" -name '*.semanticdb' -not -path '*/.git/*' 2>/dev/null | head -1)"
+  if [[ -n "$n" && "$force" != force ]]; then echo "indexed (use --force to rebuild): $dir"; return 0; fi
+  if [[ ! -f "$dir/build.sbt" ]]; then echo "skip (not an sbt build; compile it with SemanticDB manually): $dir"; return 0; fi
+  echo "indexing $dir (sbt Test/compile with SemanticDB; several minutes, log: $dir/target/semanticdb-index.log)"
+  mkdir -p "$dir/target"
+  if (cd "$dir" && sbt -batch 'set ThisBuild / semanticdbEnabled := true' Test/compile > target/semanticdb-index.log 2>&1); then
+    echo "done: $dir"
+  else
+    echo "FAILED (see log): $dir"; tail -15 "$dir/target/semanticdb-index.log"; return 1
+  fi
+}
+
 case "${1:-}" in
+  index)
+    shift
+    force=""; targets=()
+    for a in "$@"; do if [[ "$a" == --force ]]; then force=force; else targets+=("$a"); fi; done
+    if [[ ${#targets[@]} -eq 0 ]]; then
+      echo "Repo roots under $ROOT (build file, SemanticDB files). Index one with: scala_repl_add index <dir>"
+      for d in "$ROOT" "$ROOT"/*/; do
+        d="${d%/}"
+        [[ -f "$d/build.sbt" || -f "$d/build.sc" || -f "$d/build.mill" || -f "$d/project.scala" ]] || continue
+        echo "  $d  files=$(find "$d" -name '*.semanticdb' -not -path '*/.git/*' 2>/dev/null | wc -l)"
+      done
+      exit 0
+    fi
+    rc=0
+    for t in "${targets[@]}"; do
+      d="$(cd "$t" && pwd)"
+      while [[ "$d" != / && ! -f "$d/build.sbt" && ! -f "$d/build.sc" && ! -f "$d/build.mill" ]]; do d="$(dirname "$d")"; done
+      index_repo "$d" "$force" || rc=1
+    done
+    exit $rc
+    ;;
   -h|--help|help)
     print_api
     usage

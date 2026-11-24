@@ -15,5 +15,8 @@ Preloaded (no imports needed):
 
 Rules:
   Use these for Scala code search BEFORE any text scan. Text scans (".scala" strings, os.proc grep/rg/find)
-  are rejected unless the code contains the comment // text-scan-ok (repos without SemanticDB, non-Scala files).
+  are rejected unless the code contains the comment // text-scan-ok (non-Scala files only).
+  Repo has no SemanticDB? Do not text-scan: run `scala_repl_add index <repo-dir>` (sbt compile with SemanticDB,
+  ~5 min, run it in async mode), then `stop`+`start` the bridge. `scala_repl_add index` lists repo roots.
+  `index --force` rebuilds after source changes.
   Prefer `start` + eval: the index loads once (~15 s for ~/cat); `run` reloads it on every call.
