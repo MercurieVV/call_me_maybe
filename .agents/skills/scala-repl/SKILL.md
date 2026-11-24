@@ -14,7 +14,7 @@ values in the REPL and print only the compact result the LLM needs; this
 avoids separate tool round-trips and LLM turns for deterministic substeps.
 
 Use Bash as thin transport to start/control the bridge or invoke it with
-`./scala_repl_add`; do not put automation logic in Bash pipelines or scripts
+`scala_repl_add`; do not put automation logic in Bash pipelines or scripts
 when the REPL can perform it. Likewise, do not reach for Python or another
 script runtime for glue, transformations, or orchestration by default. Use
 external commands only for operations that genuinely require OS-specific
@@ -158,31 +158,75 @@ is Scala composition inside the REPL, not the MCP `batch` tool.
 
 ## REPL automation
 
-In this repository, use the project-local `./scala_repl_add` command to manage
-the persistent REPL or send code to its bridge:
+Use the global `scala_repl_add` command (on PATH) from the target project root
+to manage the persistent REPL or send code to its bridge:
 
 ```sh
-./scala_repl_add start
-./scala_repl_add status
-./scala_repl_add 'println(1 + 1)'
+scala_repl_add start
+scala_repl_add status
+scala_repl_add 'println(1 + 1)'
 
-./scala_repl_add <<'SCALA'
+scala_repl_add <<'SCALA'
 val result = 1 + 1
 println(result)
 SCALA
 
-./scala_repl_add stop
+scala_repl_add stop
 ```
 
-The current bridge is pinned to Scala `3.8.4` and core `0.9.1`, and expects
-`repl-init.scala` under `.agents/skills/scala-repl` inside the target root.
-Use it only when those versions and paths match. For another project, use the
-version-resolved one-off REPL command above; making the bridge configurable is
-future code work.
+Stateless mode (no bridge, fresh JVM per call, runs in the current directory).
+`os-lib` and `scalasemantic-core` are preloaded: `semanticProjectRoot` and a
+lazy `semanticIndex` (`SemanticIndex`) are in scope, as in `repl-init.scala`.
+Compile the project with SemanticDB first. The hook allows `scala_repl_add` only as the whole bash
+command, so for code containing a single quote (`'`) or shell characters outside
+quotes, pass it through a quoted heredoc:
+
+```sh
+scala_repl_add run 'println(os.read(os.pwd / "README.md"))'
+
+scala_repl_add run <<'SCALA'
+println(os.list(os.pwd).filter(_.last.startsWith(".")).size)
+SCALA
+```
+
+## Searching Scala code: use `semanticIndex`, not text scanning
+
+When the task is to find where something is defined or used in Scala code
+(usages, callers, config keys' consumers, call sites), query `semanticIndex`
+first. Do not `os.walk` + regex over `.scala` files unless the repo has no
+SemanticDB (check with `scala_repl_add help` / compile first).
+
+```scala
+println(usagesOf("OAuthTokenService|getOAuthToken", 40).mkString("\n"))   // file:line ROLE name
+println(findSymbols("CatHeadersFlow").map(i => (i.symbol, i.kind)))
+```
+
+Run it with `scala_repl_add start` + `eval`: the index loads once (~15 s for
+`~/cat`) and stays loaded. In `run` mode it reloads on every call. Paths are
+relative to the repo's SemanticDB root. Text scanning is for non-Scala files
+(yml, conf, json, md).
+
+Run `scala_repl_add help` to list what is preloaded (`os`, `SemanticIndex`,
+`semanticProjectRoot`, lazy `semanticIndex`, `findSymbols`, `usagesOf`, common imports) before writing code.
+
+Defaults are Scala `3.8.4` and core `0.9.1`. `os-lib` is preloaded in both the
+bridge REPL and `run` mode. For another project, set
+`SCALA_REPL_SCALA_VERSION` and `SCALA_REPL_CORE_VERSION` before `start`. Set
+`SCALA_REPL_ROOT` to use a root other than the current directory.
+
+The bridge keeps REPL state across calls. Compile errors and exceptions do not
+affect it. If the REPL dies (e.g. `System.exit`) or an eval exceeds the timeout
+(60 s, `SCALA_REPL_EVAL_TIMEOUT_SECONDS` at `start`), the bridge restarts it and
+reports that definitions were lost; re-send them.
 
 The bridge runs one REPL from its startup directory. `eval` executes Scala with
 the current user's permissions over a private `.repl-session` socket; use only
 in a trusted workspace and do not expose the socket.
+
+`scala_repl_add` rejects code that references Scala sources (a `".scala"` or
+`"scala"` string, `.sbt`) or runs `os.proc` grep/rg/find, unless it uses
+`semanticIndex`, `findSymbols` or `usagesOf`, or contains the comment
+`// text-scan-ok` (for repos without SemanticDB or non-Scala files).
 
 Compile before querying SemanticDB; restart after recompiling to reload the lazy
 index, and stop the bridge when done.

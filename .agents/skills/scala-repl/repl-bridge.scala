@@ -27,7 +27,13 @@ import scala.util.control.NonFatal
 import ujson.*
 
 object ReplBridge:
-  private val CoreDependency = "io.github.mercurievv::scalasemantic-core:0.9.1"
+  private val ScalaVersion = sys.env.getOrElse("SCALA_REPL_SCALA_VERSION", "3.8.4")
+  private val CoreVersion = sys.env.getOrElse("SCALA_REPL_CORE_VERSION", "0.9.1")
+  private val CoreDependency = s"io.github.mercurievv::scalasemantic-core:$CoreVersion"
+  private val EvalTimeout = Duration.ofSeconds(sys.env.get("SCALA_REPL_EVAL_TIMEOUT_SECONDS").flatMap(_.toLongOption).getOrElse(60L))
+
+  private def skillDir(root: Path): Path =
+    sys.env.get("SCALA_REPL_SKILL_DIR").map(Paths.get(_)).getOrElse(root.resolve(".agents/skills/scala-repl"))
   private val ReadyMarker = "SCALA_REPL_READY"
   private val Prompt = "scala> ".getBytes(StandardCharsets.UTF_8)
   private val PromptQuietPeriod = Duration.ofMillis(200)
@@ -106,7 +112,7 @@ object ReplBridge:
     val command = Seq(
       "scala-cli",
       "run",
-      root.resolve(".agents/skills/scala-repl/repl-bridge.scala").toString,
+      skillDir(root).resolve("repl-bridge.scala").toString,
       "--",
       "--root",
       root.toString,
@@ -159,11 +165,13 @@ object ReplBridge:
         "scala-cli",
         "repl",
         "--scala",
-        "3.8.4",
+        ScalaVersion,
         "--dep",
         CoreDependency,
+        "--dep",
+        "com.lihaoyi::os-lib:0.11.5",
         "--repl-init-script-file",
-        root.resolve(".agents/skills/scala-repl/repl-init.scala").toString
+        skillDir(root).resolve("repl-init.scala").toString
       )
       val child =
         new PtyProcessBuilder()
@@ -179,27 +187,42 @@ object ReplBridge:
       readPrompt(Duration.ofSeconds(60))
 
     private def readOutput(child: PtyProcess): Unit =
+      def current = process.exists(_ eq child)
       try
         val input = child.getInputStream
         val chunk = new Array[Byte](8192)
         var count = input.read(chunk)
         while count != -1 do
           lock.synchronized {
-            output ++= chunk.take(count)
-            lastOutputAt = System.nanoTime()
-            lock.notifyAll()
+            if current then
+              output ++= chunk.take(count)
+              lastOutputAt = System.nanoTime()
+              lock.notifyAll()
           }
           count = input.read(chunk)
         lock.synchronized {
-          readFailure = Some(new RuntimeException("Scala REPL closed its terminal"))
-          lock.notifyAll()
+          if current then
+            readFailure = Some(new RuntimeException("Scala REPL closed its terminal"))
+            lock.notifyAll()
         }
       catch
         case NonFatal(error) =>
           lock.synchronized {
-            readFailure = Some(error)
-            lock.notifyAll()
+            if current then
+              readFailure = Some(error)
+              lock.notifyAll()
           }
+
+    def isAlive: Boolean = process.exists(_.isAlive) && readFailure.isEmpty
+
+    def restart(): Unit =
+      stop()
+      lock.synchronized {
+        output.clear()
+        readFailure = None
+        lastOutputAt = System.nanoTime()
+      }
+      start()
 
     private def failureOrNone(): Option[Throwable] =
       readFailure.orElse(
@@ -272,7 +295,7 @@ object ReplBridge:
       def submit(submittedCode: String): Array[Byte] =
         input.write((submittedCode + "\r").getBytes(StandardCharsets.UTF_8))
         input.flush()
-        readPrompt(Duration.ofSeconds(60))
+        readPrompt(EvalTimeout)
       def synchronize(): Unit =
         val nonce = java.util.UUID.randomUUID().toString.replace("-", "")
         val marker = s"SCALA_REPL_DONE_$nonce"
@@ -365,7 +388,16 @@ object ReplBridge:
         ) -> false
       case Some(Str("eval")) =>
         requestObject.value.get("code") match
-          case Some(Str(code)) => Obj("ok" -> Bool(true), "output" -> Str(repl.evaluate(code))) -> false
+          case Some(Str(code)) =>
+            val output =
+              try repl.evaluate(code)
+              catch
+                case NonFatal(error) if !repl.isAlive || error.isInstanceOf[TimeoutException] =>
+                  repl.restart()
+                  throw new RuntimeException(
+                    s"${Option(error.getMessage).getOrElse(error.toString)}\nREPL was restarted; previous definitions are lost."
+                  )
+            Obj("ok" -> Bool(true), "output" -> Str(output)) -> false
           case _ => throw new IllegalArgumentException("eval requires a string field named 'code'")
       case Some(Str("stop")) =>
         Obj("ok" -> Bool(true), "stopping" -> Bool(true)) -> true

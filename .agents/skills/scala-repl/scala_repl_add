@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Global launcher: runs the bridge for the current directory (or $SCALA_REPL_ROOT).
+# Override SCALA_REPL_SCALA_VERSION / SCALA_REPL_CORE_VERSION for the target project.
+set -euo pipefail
+
+SKILL_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+ROOT="$(cd "${SCALA_REPL_ROOT:-$PWD}" && pwd)"
+export SCALA_REPL_SKILL_DIR="$SKILL_DIR"
+
+usage() {
+  cat <<'EOF'
+Usage: scala_repl_add start|status|stop
+       scala_repl_add [eval] <Scala code>
+       scala_repl_add run <Scala code>    (stateless, no bridge; os-lib available)
+       scala_repl_add <<'SCALA'
+       <multiline Scala code>
+       SCALA
+EOF
+}
+
+reject_text_scan() {
+  local code="$1"
+  [[ "$code" =~ (semanticIndex|findSymbols|usagesOf|text-scan-ok) ]] && return 0
+  if [[ "$code" =~ (\.scala|\"scala\"|\.sbt) ]] \
+    || { [[ "$code" =~ os\.proc ]] && [[ "$code" =~ (\"grep\"|\"rg\"|\"find\"|\"ag\") ]]; }; then
+    {
+      echo "scala_repl_add: text scan of Scala sources rejected."
+      echo "Use usagesOf(\"Name\") / findSymbols(\"regex\") / semanticIndex (resolves real symbols)."
+      echo "For repos without SemanticDB or non-Scala files, add the comment // text-scan-ok to the code and retry."
+    } >&2
+    exit 3
+  fi
+}
+
+case "${1:-}" in
+  -h|--help|help)
+    cat <<'EOF'
+Preloaded in both the bridge REPL and `run` mode (no import needed):
+  os                    os-lib, e.g. os.read, os.walk, os.list, os.proc(...).call()
+  SemanticIndex         scalasemantic-core
+  semanticProjectRoot   String, the directory the REPL was started in
+  semanticIndex         lazy SemanticIndex (compiled SemanticDB of all repos under the root)
+  findSymbols(regex)    symbols whose displayName matches
+  usagesOf(regex, 50)   "file:line ROLE name" for every occurrence of matching symbols
+  CollectionConverters.*, Try, Using are imported
+
+For Scala code search, use findSymbols/usagesOf/semanticIndex BEFORE os.walk + regex over
+source text: it resolves real symbols, not strings. The first use loads the index (~15 s for
+~/cat). Use `start` + `eval` so it loads once; `run` reloads it on every call.
+Use os.walk/os.read only for non-Scala files or when a repo has no SemanticDB.
+Scala source references (".scala"/"scala" string, ".sbt") and os.proc grep/rg/find are rejected unless the
+code uses semanticIndex/findSymbols/usagesOf or contains the comment // text-scan-ok.
+Use a quoted heredoc for code containing a single quote.
+EOF
+    echo
+    usage
+    exit 0
+    ;;
+  run)
+    shift
+    if [[ $# -eq 0 ]]; then
+      if [[ -t 0 ]]; then
+        usage >&2
+        exit 2
+      fi
+      code="$(cat)"
+    else
+      code="$*"
+    fi
+    reject_text_scan "$code"
+    cd "$ROOT"
+    script="$(mktemp --suffix=.sc)"
+    trap 'rm -f "$script"' EXIT
+    {
+      echo "//> using scala ${SCALA_REPL_SCALA_VERSION:-3.8.4}"
+      echo "//> using dep com.lihaoyi::os-lib:0.11.5"
+      echo "//> using dep io.github.mercurievv::scalasemantic-core:${SCALA_REPL_CORE_VERSION:-0.9.1}"
+      grep -v '^println(' "$SKILL_DIR/repl-init.scala"
+      printf '%s\n' "$code"
+    } > "$script"
+    scala-cli run -q --suppress-outdated-dependency-warning --suppress-experimental-feature-warning "$script"
+    exit $?
+    ;;
+  start|status|stop)
+    action="$1"
+    shift
+    if [[ $# -ne 0 ]]; then
+      usage >&2
+      exit 2
+    fi
+    exec scala-cli run "$SKILL_DIR/repl-bridge.scala" -- --root "$ROOT" "$action"
+    ;;
+  eval)
+    shift
+    ;;
+esac
+
+if [[ $# -eq 0 ]]; then
+  if [[ -t 0 ]]; then
+    usage >&2
+    exit 2
+  fi
+  code="$(cat)"
+else
+  code="$*"
+fi
+
+if [[ -z "$code" ]]; then
+  usage >&2
+  exit 2
+fi
+
+reject_text_scan "$code"
+exec scala-cli run "$SKILL_DIR/repl-bridge.scala" -- --root "$ROOT" eval "$code"
