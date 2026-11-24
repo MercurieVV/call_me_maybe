@@ -238,10 +238,9 @@ changed). Without arguments it lists repo roots and their index status. Use it
 instead of text scanning when a repo has no `.semanticdb` files, then restart
 the bridge.
 
-`scala_repl_add` rejects code that references Scala sources (a `".scala"` or
-`"scala"` string, `.sbt`) or runs `os.proc` grep/rg/find, unless it uses
-`semanticIndex`, `findSymbols` or `usagesOf`, or contains the comment
-`// text-scan-ok` (for repos without SemanticDB or non-Scala files).
+Text search hits in indexed Scala files carry `[in Owner.name]` (the nearest
+definition); pass that name to `usagesOf` to continue semantically. `show`, `ctx`
+and `enclosing` are preloaded (see `help`). `worktrees/` is excluded by default.
 
 Compile before querying SemanticDB; restart after recompiling to reload the lazy
 index, and stop the bridge when done.

@@ -18,21 +18,6 @@ Usage: scala_repl_add start|status|stop
 EOF
 }
 
-reject_text_scan() {
-  local code="$1"
-  [[ "$code" =~ (semanticIndex|findSymbols|usagesOf|text-scan-ok) ]] && return 0
-  if [[ "$code" =~ (\.scala|\"scala\"|\.sbt) ]] \
-    || { [[ "$code" =~ os\.proc ]] && [[ "$code" =~ (\"grep\"|\"rg\"|\"find\"|\"ag\") ]]; }; then
-    {
-      echo "scala_repl_add: text scan of Scala sources rejected."
-      echo "Use usagesOf(\"Name\") / findSymbols(\"regex\") / semanticIndex for Scala code; searchText / corpus for config and other text (see: scala_repl_add help)."
-      echo "For repos without SemanticDB run: scala_repl_add index <repo-dir>  (compiles it with SemanticDB, ~5 min; 'scala_repl_add index' lists repo roots)."
-      echo "Only for non-Scala files add the comment // text-scan-ok to the code and retry."
-    } >&2
-    exit 3
-  fi
-}
-
 print_api() {
   cat "$SKILL_DIR/repl-api.txt"
   echo "Preloaded in the REPL (generated from repl-init.scala):"
@@ -123,6 +108,5 @@ if [[ -z "$code" ]]; then
   exit 2
 fi
 
-reject_text_scan "$code"
 ensure_bridge
 exec scala-cli run -q "$SKILL_DIR/repl-bridge.scala" -- --root "$ROOT" eval "$code"

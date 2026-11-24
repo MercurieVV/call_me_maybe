@@ -15,15 +15,22 @@ Examples:
   // config / non-Scala text in one repo, with line numbers
   corpus.filter(d => d.path.startsWith("P-Foo/") && d.path.endsWith(".conf")).foreach(d =>
     d.lines.zipWithIndex.filter(_._1.contains("proxy")).foreach((l, i) => println(d.path + ":" + (i + 1) + ": " + l.trim)))
-  // text hits restricted to a path and extension
+  // text hits restricted to a path and extension; hits in Scala files show [in Owner.name] - pass that name to usagesOf
   searchText("(?i)proxy", 100, pathPrefix = "P-Foo/", exts = Set("yml", "conf")).foreach(println)
+  // matches with surrounding lines, and a file slice
+  ctx("SESSION_API", pathPrefix = "P-Foo/", before = 2, after = 5)
+  show("sessions-api/reference.conf", 1, 60)
+  // nearest definition for any line you found yourself
+  enclosing("P-Foo/src/main/scala/com/x/Bar.scala", 120)
 
 Notes: os (os-lib), Try, Using and CollectionConverters.* are imported. semanticIndex is lazy and covers the compiled
 SemanticDB of every repo under the root (SemanticIndex: symbols, occurrencesOf, info, ownerChain, ...).
 
 Rules:
-  Use semanticIndex/findSymbols/usagesOf for Scala code questions BEFORE any text scan. Text scans of Scala sources
-  (".scala" strings, os.proc grep/rg/find) are rejected unless the code contains the comment // text-scan-ok.
+  Use semanticIndex/findSymbols/usagesOf for Scala code questions (who calls/uses/builds X) BEFORE text search.
+  Text search (corpus/searchText/ctx) is for config, string literals and keys; then switch to usagesOf on the
+  enclosing symbol. git worktrees (<root>/worktrees) are excluded from corpus and usagesOf (usagesOf(..., worktrees = true)).
+  Do not use os.proc grep/rg/find/sed/awk.
   Repo has no SemanticDB? Do not text-scan: run `scala_repl_add index <repo-dir>` (sbt compile with SemanticDB,
   ~5 min, run it in async mode), then `scala_repl_add stop`; the bridge restarts on the next call.
   `index --force` rebuilds after source changes.
