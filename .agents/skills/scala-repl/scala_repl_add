@@ -21,7 +21,7 @@ EOF
 print_api() {
   cat "$SKILL_DIR/repl-api.txt"
   echo "Preloaded in the REPL (generated from repl-init.scala):"
-  grep -E '^(def|lazy val|val|case class) ' "$SKILL_DIR/repl-init.scala" | sed -E 's/ =$//; s/^/  /'
+  grep -E '^(def|lazy val|val|case class) ' "$SKILL_DIR/repl-init.scala" | grep -v '^val shAlternatives' | sed -E '/^def /s/(\)(: [^=]+)?) =( .*)?$/\1/; s/ =$//; s/^/  /'
   echo
   scala-cli run -q --suppress-outdated-dependency-warning --suppress-experimental-feature-warning \
     "$SKILL_DIR/mcp-tools.sc" -- "$ROOT" 2>/dev/null || echo "(tool catalog unavailable: scalasemantic-mcp not runnable)"

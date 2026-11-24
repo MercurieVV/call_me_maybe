@@ -170,6 +170,10 @@ object ReplBridge:
         CoreDependency,
         "--dep",
         "com.lihaoyi::os-lib:0.11.5",
+        "--dep",
+        "io.circe::circe-parser:0.14.14",
+        "--dep",
+        "io.circe::circe-generic:0.14.14",
         "--repl-init-script-file",
         skillDir(root).resolve("repl-init.scala").toString
       )

@@ -22,6 +22,14 @@ Examples:
   show("sessions-api/reference.conf", 1, 60)
   // nearest definition for any line you found yourself
   enclosing("P-Foo/src/main/scala/com/x/Bar.scala", 120)
+  // external commands (git, gh, aws, az, psql) return "exit=N" + output as a String; shT(120, ...) is not allowed over 60 s
+  println(sh("aws", "sts", "get-caller-identity", "--profile", "prod"))
+  println(decodeAs[(state: String, title: String)](sh("gh", "api", "repos/o/r/pulls/1").linesIterator.drop(1).mkString("\n")))
+  // other revisions (SemanticDB only covers the checked-out tree)
+  println(gitShow("origin/master", "P-Foo/src/main/scala/com/x/Bar.scala"))
+  println(gitDiff("origin/master", "HEAD", "P-Foo/src"))
+  // long builds run in the background; call buildResult() again until it stops saying "still running"
+  build("sbt", "-batch", "Test/compile"); println(buildResult())
 
 Notes: os (os-lib), Try, Using and CollectionConverters.* are imported. semanticIndex is lazy and covers the compiled
 SemanticDB of every repo under the root (SemanticIndex: symbols, occurrencesOf, info, ownerChain, ...).
@@ -30,7 +38,7 @@ Rules:
   Use semanticIndex/findSymbols/usagesOf for Scala code questions (who calls/uses/builds X) BEFORE text search.
   Text search (corpus/searchText/ctx) is for config, string literals and keys; then switch to usagesOf on the
   enclosing symbol. git worktrees (<root>/worktrees) are excluded from corpus and usagesOf (usagesOf(..., worktrees = true)).
-  Do not use os.proc grep/rg/find/sed/awk.
+  Do not use os.proc grep/rg/find/sed/awk. Never poll with Thread.sleep or temp files: use sh/build/buildResult. circe is available: decodeAs[T](text) with case classes or named tuples, parseJson(text).
   Repo has no SemanticDB? Do not text-scan: run `scala_repl_add index <repo-dir>` (sbt compile with SemanticDB,
   ~5 min, run it in async mode), then `scala_repl_add stop`; the bridge restarts on the next call.
   `index --force` rebuilds after source changes.

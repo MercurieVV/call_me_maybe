@@ -1,11 +1,13 @@
 import com.github.mercurievv.scalasemantic.semanticdb.SemanticIndex
 import scala.jdk.CollectionConverters.*
 import scala.util.{Try, Using}
+import io.circe.Json
+import io.circe.generic.auto.*
 
 val semanticProjectRoot = java.nio.file.Paths.get(".").toAbsolutePath.normalize().toString
 lazy val semanticIndex = SemanticIndex.fromProject(semanticProjectRoot)
 
-def findSymbols(regex: String) =
+def findSymbols(regex: String): Vector[scala.meta.internal.semanticdb.SymbolInformation] =
   val rx = regex.r
   semanticIndex.symbols.valuesIterator.filter(i => rx.findFirstIn(i.displayName).isDefined).toVector
 
@@ -13,7 +15,7 @@ lazy val repoDirs = os.list(os.Path(semanticProjectRoot)).filter(os.isDir).map(_
 def withRepo(uri: String): String =
   repoDirs.find(r => os.exists(os.Path(semanticProjectRoot) / r / os.RelPath(uri))).fold(uri)(r => s"$r/$uri")
 
-def usagesOf(regex: String, limit: Int = 50, worktrees: Boolean = false) =
+def usagesOf(regex: String, limit: Int = 50, worktrees: Boolean = false): Vector[String] =
   findSymbols(regex).flatMap { i =>
     semanticIndex.occurrencesOf(i.symbol).map((uri, o) => (withRepo(uri), o, i))
   }.filter((p, _, _) => worktrees || !p.startsWith("worktrees/"))
@@ -72,5 +74,40 @@ def ctx(regex: String, pathPrefix: String = "", before: Int = 2, after: Int = 3,
       println(s"## ${d.path}:${i + 1}")
       (math.max(0, i - before) to math.min(d.lines.size - 1, i + after)).foreach(j => println(s"${j + 1}: ${d.lines(j)}"))
     }
+// run an external command (git, gh, aws, az, psql, sbt) and return exit code + output; no temp files or sleeps
+val shAlternatives: Map[String, String] = Map(
+  "grep" -> "corpus/searchText/ctx/usagesOf", "rg" -> "corpus/searchText/ctx/usagesOf", "find" -> "corpus or os.walk",
+  "cat" -> "os.read / show", "head" -> "os.read.lines(...).take", "tail" -> "os.read.lines(...).takeRight", "ls" -> "os.list",
+  "sed" -> "Scala String/collection ops", "awk" -> "Scala collections", "jq" -> "decodeAs[T](...) / parseJson(...)", "python" -> "Scala + circe", "python3" -> "Scala + circe",
+  "curl" -> "requests", "sleep" -> "buildResult(waitSec)", "bash" -> "Scala", "sh" -> "Scala", "echo" -> "println", "wc" -> "Scala collections")
+def sh(cmd: String*): String = shT(55, cmd*)
+def shT(timeoutSec: Int, cmd: String*): String =
+  shAlternatives.get(cmd.headOption.fold("")(c => c.split('/').last)) match
+    case Some(alt) => s"refused: ${cmd.head} has a Scala alternative: $alt"
+    case None => shRun(timeoutSec, cmd*)
+def shRun(timeoutSec: Int, cmd: String*): String =
+  Try(os.proc(cmd).call(cwd = os.Path(semanticProjectRoot), check = false, stderr = os.Pipe, timeout = timeoutSec * 1000L)) match
+    case scala.util.Success(r) => s"exit=${r.exitCode}\n${r.out.text()}"
+    case scala.util.Failure(e) => s"failed: ${e.getClass.getSimpleName} (timeout=${timeoutSec}s)"
+
+// typed JSON: decodeAs[List[(version: String, success: Boolean)]](text); case classes and named tuples both work; use parseJson(text).hcursor for untyped access
+def decodeAs[T: io.circe.Decoder](s: String): T = io.circe.parser.decode[T](s).fold(throw _, identity)
+def parseJson(s: String): Json = io.circe.parser.parse(s).fold(throw _, identity)
+
+// file content at another revision, and diffs between revisions
+def gitShow(rev: String, path: String): String = sh("git", "--no-pager", "show", s"$rev:$path")
+def gitDiff(a: String, b: String, path: String = ""): String =
+  sh(("git" +: "--no-pager" +: "diff" +: a +: b +: (if path.isEmpty then Nil else Seq("--", path)))*)
+
+// long build in the background (eval limit is 60 s): build("sbt","-batch","Test/compile") then buildResult() until it returns a result
+var buildJob: Option[scala.concurrent.Future[String]] = None
+def build(cmd: String*): Unit =
+  buildJob = Some(scala.concurrent.Future {
+    val r = os.proc(cmd).call(cwd = os.Path(semanticProjectRoot), check = false, stderr = os.Pipe, timeout = 3600000L)
+    (s"exit=${r.exitCode}" +: r.out.lines().filter(l => l.contains("[error]") || l.contains("[success]"))).take(60).mkString("\n")
+  }(scala.concurrent.ExecutionContext.global))
+def buildResult(waitSec: Int = 50): String =
+  buildJob.fold("no build started")(j => Try(scala.concurrent.Await.result(j, scala.concurrent.duration.Duration(waitSec, "s"))).getOrElse("still running"))
+
 println(s"SemanticDB project root=$semanticProjectRoot")
 println("SCALA_REPL_READY")
