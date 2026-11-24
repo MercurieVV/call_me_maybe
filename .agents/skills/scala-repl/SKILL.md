@@ -228,6 +228,11 @@ printed by `start`) for the preloaded helpers plus the live scala-semantic MCP
 tool catalog and `SemanticIndex` API, generated at run time (cached; refreshed
 when `scalasemantic-mcp` or `mcp-tools.sc` changes).
 
+Quick one-line commands (no heredoc; the bridge auto-starts): `scala_repl_add usages '<regex>'`
+(symbol definitions and references across all repos under the root), `symbols '<regex>'`,
+`search '<regex>'` (text search incl. config files in all repos). Prefer them over MCP
+`search_text`/`set_workspace_root` hopping and over `os.proc` grep/rg: they cover every repo at once.
+
 `scala_repl_add index [<repo-dir>] [--force]` compiles an sbt repo with SemanticDB
 (`set ThisBuild / semanticdbEnabled := true`, `Test/compile`; no build files are
 changed). Without arguments it lists repo roots and their index status. Use it

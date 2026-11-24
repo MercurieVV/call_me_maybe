@@ -1,3 +1,10 @@
+Quick commands (one line, no heredoc; the bridge starts by itself, first call loads the index ~15 s):
+  scala_repl_add usages '<name regex>' [limit]     symbol-resolved definitions + references, as repo/path:line ROLE name
+  scala_repl_add symbols '<name regex>' [limit]    kind, name and full symbol string
+  scala_repl_add search '<regex>' [limit]          text search over code and config (.conf .yml .json .sbt .md ...) in ALL repos under the root
+  scala_repl_add index [<repo-dir>] [--force]      compile a repo with SemanticDB when usages/symbols find nothing
+Use `usages`/`symbols` for Scala code questions, `search` for config and non-Scala text.
+
 Write code as a multi-line quoted heredoc (always works, no quoting issues):
   scala_repl_add <<'SCALA'        (bridge REPL, state kept; after `start`)
   scala_repl_add run <<'SCALA'    (stateless, fresh JVM per call)
@@ -10,7 +17,8 @@ Preloaded (no imports needed):
   semanticProjectRoot: String           directory the REPL started in
   semanticIndex: SemanticIndex          lazy; compiled SemanticDB of every repo under the root
   findSymbols(regex: String): Vector[SymbolInformation]
-  usagesOf(regex: String, limit: Int = 50): Vector[String]    "file:line ROLE name"
+  usagesOf(regex: String, limit: Int = 50): Vector[String]    "repo/path:line ROLE name"
+  searchText(regex: String, limit: Int = 60, exts: Set[String] = Set.empty): Vector[String]   "repo/path:line: text" over all repos
   Try, Using, CollectionConverters.* imported
 
 Rules:

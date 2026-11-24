@@ -10,6 +10,8 @@ export SCALA_REPL_SKILL_DIR="$SKILL_DIR"
 usage() {
   cat <<'EOF'
 Usage: scala_repl_add start|status|stop
+       scala_repl_add usages|symbols|search '<regex>' [limit]
+       scala_repl_add index [<repo-dir>] [--force]
        scala_repl_add [eval] <Scala code>
        scala_repl_add run <Scala code>    (stateless, no bridge; os-lib available)
        scala_repl_add <<'SCALA'
@@ -25,7 +27,7 @@ reject_text_scan() {
     || { [[ "$code" =~ os\.proc ]] && [[ "$code" =~ (\"grep\"|\"rg\"|\"find\"|\"ag\") ]]; }; then
     {
       echo "scala_repl_add: text scan of Scala sources rejected."
-      echo "Use usagesOf(\"Name\") / findSymbols(\"regex\") / semanticIndex (resolves real symbols)."
+      echo "Use usagesOf(\"Name\") / findSymbols(\"regex\") / semanticIndex, or the one-liners: scala_repl_add usages|symbols|search '<regex>'."
       echo "For repos without SemanticDB run: scala_repl_add index <repo-dir>  (compiles it with SemanticDB, ~5 min; 'scala_repl_add index' lists repo roots)."
       echo "Only for non-Scala files add the comment // text-scan-ok to the code and retry."
     } >&2
@@ -54,7 +56,26 @@ index_repo() {
   fi
 }
 
+ensure_bridge() {
+  if ! scala-cli run -q "$SKILL_DIR/repl-bridge.scala" -- --root "$ROOT" status >/dev/null 2>&1; then
+    echo "(starting REPL bridge, first call loads the index...)" >&2
+    scala-cli run -q "$SKILL_DIR/repl-bridge.scala" -- --root "$ROOT" start >/dev/null 2>&1 || { echo "bridge failed to start; try: scala_repl_add start" >&2; exit 1; }
+  fi
+}
+
 case "${1:-}" in
+  usages|symbols|search)
+    cmd="$1"; shift
+    if [[ $# -lt 1 ]]; then usage >&2; exit 2; fi
+    pattern="$1"; limit="${2:-}"
+    ensure_bridge
+    case "$cmd" in
+      usages)  code="println(cmdUsages(\"\"\"$pattern\"\"\", ${limit:-50}))" ;;
+      symbols) code="println(cmdSymbols(\"\"\"$pattern\"\"\", ${limit:-50}))" ;;
+      search)  code="println(cmdSearch(\"\"\"$pattern\"\"\", ${limit:-60}))" ;;
+    esac
+    exec scala-cli run -q "$SKILL_DIR/repl-bridge.scala" -- --root "$ROOT" eval "$code"
+    ;;
   index)
     shift
     force=""; targets=()
